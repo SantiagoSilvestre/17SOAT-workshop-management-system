@@ -76,7 +76,83 @@ depender do banco, senão uma queda do banco reinicia todos os pods à toa. Anal
 Forma padrão de o Deployment trocar de versão: sobe os pods novos e só desliga os antigos quando os novos ficam
 prontos. Se a versão nova nunca fica pronta, a antiga continua atendendo.
 
+### startupProbe
+
+Terceira verificação de saúde, válida só durante o boot. Enquanto ela não passa, a liveness não é feita; assim um boot
+lento (Flyway, JVM) não é confundido com processo travado. Analogia: não cobrar produtividade do mecânico enquanto ele
+troca de roupa. Ver [technical-spec da infra](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md).
+
+### Requests e limits
+
+`request` é quanto de CPU/memória o pod tem reservado (usado para escolher o node e como base do HPA); `limit` é o
+teto. Quem passa do limite de memória é morto (`OOMKilled`); quem passa do de CPU é desacelerado. Analogia: vaga
+reservada no pátio × tamanho máximo do box.
+
+### HPA (Horizontal Pod Autoscaler)
+
+Ajusta o número de réplicas de um Deployment entre um mínimo e um máximo, comparando o consumo médio com um alvo
+percentual da request (ex.: 70% de CPU). Analogia: o gerente chama mais mecânicos quando a fila cresce. Ver
+[technical-spec da infra](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md).
+
+### metrics-server
+
+Componente que coleta CPU e memória dos pods a partir do kubelet de cada node; sem ele o HPA fica cego. No kind roda
+com `--kubelet-insecure-tls`, porque o certificado do kubelet é autoassinado. Analogia: o medidor de fila do gerente.
+
+### Kustomize (base e overlay)
+
+Ferramenta embutida no `kubectl` (`apply -k`) que monta os YAMLs a partir de uma `base` comum e de `overlays` com só
+as diferenças de cada ambiente. Analogia: ficha padrão de revisão + anexo por modelo de carro.
+
+### ConfigMap e Secret
+
+Objetos que entregam configuração ao pod, normalmente como variáveis de ambiente. ConfigMap para valores comuns;
+Secret para sensíveis (acesso mais restrito, fora do `describe`). Analogia: quadro de avisos × cofre.
+
+### StatefulSet e PV/PVC
+
+StatefulSet é o controlador para quem guarda dados: nome estável (`mysql-0`) e disco próprio. O PVC
+(PersistentVolumeClaim) é o pedido de disco; o PV é o disco entregue. O disco sobrevive à morte do pod. Analogia: o
+arquivo de fichas fica no lugar mesmo que o arquivista troque. Usado no MySQL local.
+
+### NodePort, extraPortMappings e port-forward
+
+NodePort abre uma porta fixa (30000–32767) no node e encaminha ao Service. No kind o node é um container, então o
+`extraPortMappings` liga essa porta ao `localhost` do PC. `kubectl port-forward` também dá acesso, mas prende o
+tráfego em um único pod, o que invalida um teste de HPA. Analogia: janela de atendimento que dá para a rua.
+
+## Terraform
+
+### Stack, state e lock file
+
+Stack é uma pasta com `init/plan/apply` próprios (aqui, `cluster` e `database` por ambiente). O state é o inventário
+do que o Terraform criou e pode conter segredos: nunca é versionado. O `.terraform.lock.hcl` fixa as versões dos
+providers e **é** versionado. Analogia: inventário do almoxarifado × lista de fornecedores homologados. Ver
+[technical-spec da infra](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md).
+
+## Aplicação
+
+### Actuator
+
+Módulo do Spring Boot que expõe endpoints operacionais prontos, como `/actuator/health/liveness` e `/readiness`, e já
+sabe checar o banco. Analogia: o painel de luzes do carro.
+
 ## CI/CD
+
+### GHCR
+
+GitHub Container Registry (`ghcr.io`): registry de imagens ligado à conta do GitHub, onde a pipeline publica a imagem
+com tag pelo SHA. Analogia: estoque central de peças.
+
+### Environment do GitHub
+
+Agrupamento de secrets e variáveis que só os jobs que declaram `environment: <nome>` enxergam (aqui, `kind-ci` e
+`aws-academy` no fork). Analogia: um cofre por filial.
+
+### k6
+
+Ferramenta de teste de carga com cenários em JavaScript e limiares de aprovação; roda pelo container `grafana/k6`.
+Usada para provocar a escala do HPA.
 
 ### Smoke test _(introdução)_
 
