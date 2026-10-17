@@ -23,5 +23,5 @@ public record OpenServiceOrderIntakeRequest(
         UUID diagnosisTechnicianId,
         @Size(max = 20, message = "A abertura aceita no máximo 20 serviços")
         @Valid
-        List<IntakeServiceRequest> services) {
+        List<@NotNull(message = "O serviço não pode ser nulo") IntakeServiceRequest> services) {
 }

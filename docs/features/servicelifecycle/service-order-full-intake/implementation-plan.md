@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Feature | `service-order-full-intake` |
-| Status | In Progress |
+| Status | Implemented |
 | Responsável | Santiago Silvestre |
 | Atualizado em | 2026-10-17 |
 | Especificação funcional | `./functional-spec.md` (`Approved` em 2026-10-16) |
@@ -41,7 +41,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Completed |
 | 6 | Testes de integração ponta a ponta e atomicidade | Completed |
 | 7 | OpenAPI, Postman e README | Completed |
-| 8 | Revisão de segurança e gates finais | Pending |
+| 8 | Revisão de segurança e gates finais | Completed |
 
 ## Checkpoint 0 — Preparar a execução
 
@@ -218,14 +218,20 @@ Um teste por critério de aceite da functional-spec, incluindo:
 
 | Item | Resultado | Mitigação / evidência |
 |---|---|---|
-| Validação de entrada e mass assignment | Pendente | |
-| Autenticação e autorização | Pendente | |
-| Exposição de dados de Customer/Vehicle | Pendente | |
-| Segredos e logs sensíveis | Pendente | |
-| SQL, persistência e migrations | N/A para migrations (sem schema novo); persistência pendente | |
-| Respostas de erro e vazamento de informação | Pendente | |
-| Dependências novas | N/A: nenhuma dependência nova | |
-| Abuso do endpoint (volume, concorrência, manipulação de preço) | Pendente | |
+| Validação de entrada e mass assignment | **Achado médio, corrigido no CP8** | DTOs dedicados sem preço, nome, tipo, status ou dono (`OpenApiContractTest` trava a ausência de `price`); Bean Validation + validação de domínio. Achado: `"services": [null]` e `"parts": [null]` passavam pelo `@Valid` (elemento nulo não é validado em cascata) e causariam `NullPointerException` → `500`. Correção: `List<@NotNull ...>` nos dois DTOs; 2 casos novos em `ControllerTest.rejectsInvalidBodies...` (falharam antes da correção, passam depois) |
+| Autenticação e autorização | OK | `SecurityConfig`: `POST /api/service-orders/intake` só `MANAGER`/`ADMIN`, antes da regra geral de `TECHNICIAN`. `ControllerTest`: sem token → 401; `TECHNICIAN` e `CUSTOMER` → 403 |
+| Exposição de dados de Customer/Vehicle | OK (risco aceito) | A resposta traz só IDs, `created` e a OS; nenhum documento, e-mail ou telefone volta. `created=false` revela que o CPF já é cliente: aceito, porque só `MANAGER`/`ADMIN` chegam aqui e já têm `GET /api/customers/identify` |
+| Segredos e logs sensíveis | OK | Nenhum segredo novo; nenhum log novo no código da feature (conferido por busca nos 50 arquivos alterados) |
+| SQL, persistência e migrations | OK; migrations N/A | Sem schema novo. Só duas queries novas, JPQL com parâmetros nomeados (`VehicleJpaRepository`, lock pessimista); constraints únicas existentes como última barreira; concorrência → `409 CONCURRENT_REGISTRATION`. Validado no MySQL 8.4 real no CP7 |
+| Respostas de erro e vazamento de informação | OK | Mensagens fixas, sem CPF, placa ou e-mail; mensagens de domínio repassadas só citam o nome do campo. Sem stack trace nem SQL na resposta; tipo de peça desconhecido vira exceção própria (falha técnica) |
+| Dependências novas | N/A | Nenhuma dependência nova |
+| Abuso do endpoint (volume, concorrência, manipulação de preço) | OK (risco residual aceito) | Preço sempre do catálogo/estoque (`FlowTest` envia 0,01 e recebe 150,00/45,90); máximo de 20 serviços e 20 peças por serviço (limita linhas travadas); IDs ordenados antes do lock (sem deadlock). Residual: não há rate limiting no projeto, mitigado por exigir `MANAGER`/`ADMIN` |
+
+Achado registrado para correção separada (fora do escopo): no endpoint de Diagnosis atual, a
+`StockItemInactiveException` de `stockprocurement` herda de `IllegalStateException` e, por isso, deve ser capturada
+pelo handler genérico de `servicelifecycle` como `409 INVALID_STATE_TRANSITION`, um código enganoso, em vez de
+`409 STOCK_ITEM_INACTIVE`. A hipótese anterior de `500` não se confirma pela leitura do código; confirmar com um teste
+na correção própria.
 
 ## Evidências de verificação
 
@@ -402,6 +408,24 @@ Rastreabilidade dos critérios de aceite da functional-spec:
   porque o `core.autocrlf=true` entregou o script com CRLF na cópia de trabalho. A cópia local foi convertida para
   LF (o índice do git já tinha LF; o diff de conteúdo é vazio). A correção definitiva (`*.sh text eol=lf` no
   `.gitattributes`) fica para o CP1 da infra, que também remove o script (D2).
+
+### CP8 — 2026-10-17
+
+- `make` não existe na máquina (Windows); `make verify` e `make coverage` equivalem a `./mvnw clean verify`
+  (ver `Makefile`), que foi o comando executado.
+- Primeira execução, antes das correções: 922 testes, 0 falhas, 0 ignorados; gate JaCoCo atendido; 94,3% de
+  instruções. Lacunas no código da feature: `IntakeAddressRequest` 0/24 e `OpenServiceOrderIntakeUseCase` 438/456
+  (mapeamento do endereço sem teste).
+- Correções: `List<@NotNull ...>` em `OpenServiceOrderIntakeRequest.services` e `IntakeServiceRequest.parts` (ver a
+  revisão de segurança); 3 corpos inválidos novos em `ServiceOrderIntakeControllerTest` (serviço nulo, peça nula e
+  `state` com 3 letras); `OpenServiceOrderIntakeUseCaseTest.passesEveryAddressFieldToTheRegistration`. A correção do
+  DTO não muda o contrato aprovado: a technical-spec já previa `400` para dados inválidos.
+- Execução final (`./mvnw clean verify`): **926 testes**, 0 falhas, 0 erros, 0 ignorados; `ModuleStructureTest` verde
+  (2); "All coverage checks have been met"; **94,5%** de instruções, 95,3% de linhas e 77,8% de branches no total
+  (gate do projeto: 80% de instruções). Código da feature: `OpenServiceOrderIntakeUseCase` 456/456 instruções e
+  39/41 branches; `IntakeAddressRequest` 24/24; adapters, APIs de cotação e controller com 100%.
+- Specs: `functional-spec.md` e `technical-spec.md` continuam `Approved`, seguindo a convenção das demais features
+  (`jwt-authentication`, `notifications-so-finalized`): só o plano passa a `Implemented`.
 
 ## Rollback ou recuperação
 

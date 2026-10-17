@@ -234,6 +234,21 @@ do banco é a última barreira. Analogia: dois atendentes cadastrando o mesmo cl
 recebe "já existe, tente de novo". Ver
 [technical-spec da abertura completa](../features/servicelifecycle/service-order-full-intake/technical-spec.md).
 
+### Validação em cascata (`@Valid`) e elemento nulo
+
+`@Valid` numa lista manda o Bean Validation validar **cada objeto** dela, mas um elemento `null` não tem o que
+validar e passa. Para rejeitá-lo, a anotação vai no tipo do elemento: `List<@NotNull IntakeServiceRequest>`.
+Sem isso, `"services": [null]` virava `NullPointerException` e `500`. Analogia: conferir cada peça da caixa, mas não
+perceber um espaço vazio onde deveria haver uma peça. Ver o achado do
+[CP8](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
+### Cobertura de código (JaCoCo)
+
+Percentual do código executado pelos testes: instruções (bytecode), linhas e branches (cada caminho de um `if`).
+O JaCoCo mede e o `./mvnw verify` falha abaixo de 80%. Cobertura alta não prova que o teste confere algo; ela
+mostra o que **nunca** foi exercitado (aqui, o endereço do intake). Analogia: a lista de itens do check-up que o
+mecânico nem chegou a olhar. Relatório em `target/site/jacoco/index.html`.
+
 ### OpenAPI e teste de contrato
 
 OpenAPI é a descrição da API em JSON (`/v3/api-docs`), gerada pelo Springdoc a partir das anotações do controller; o

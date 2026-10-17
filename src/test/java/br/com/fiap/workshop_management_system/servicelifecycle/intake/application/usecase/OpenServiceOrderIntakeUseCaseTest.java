@@ -2,6 +2,7 @@ package br.com.fiap.workshop_management_system.servicelifecycle.intake.applicati
 
 import br.com.fiap.workshop_management_system.servicelifecycle.estimate.application.usecase.GenerateEstimateUseCase;
 import br.com.fiap.workshop_management_system.servicelifecycle.estimate.domain.model.Estimate;
+import br.com.fiap.workshop_management_system.servicelifecycle.intake.application.dto.IntakeAddressRequest;
 import br.com.fiap.workshop_management_system.servicelifecycle.intake.application.dto.IntakeContactInfoRequest;
 import br.com.fiap.workshop_management_system.servicelifecycle.intake.application.dto.IntakeCustomerRequest;
 import br.com.fiap.workshop_management_system.servicelifecycle.intake.application.dto.IntakePartRequest;
@@ -235,6 +236,26 @@ class OpenServiceOrderIntakeUseCaseTest {
         assertEquals("529.982.247-25", captor.getValue().document());
         assertNull(captor.getValue().email());
         assertNull(captor.getValue().address());
+    }
+
+    @Test
+    void passesEveryAddressFieldToTheRegistration() {
+        givenCustomer(CustomerIntakePort.Status.CREATED);
+        givenVehicle(VehicleIntakePort.Status.CREATED);
+        givenServiceOrderCreated();
+        IntakeAddressRequest address = new IntakeAddressRequest("Avenida Paulista", "1000", "Conjunto 101",
+                "Bela Vista", "São Paulo", "SP", "01310-100");
+
+        useCase.execute(new OpenServiceOrderIntakeRequest(
+                new IntakeCustomerRequest("529.982.247-25", "Cliente",
+                        new IntakeContactInfoRequest("cliente@example.test", "+5511999999999", address)),
+                vehicleRequest(), null, "Triagem", null, null));
+
+        ArgumentCaptor<CustomerIntakePort.CustomerData> captor =
+                ArgumentCaptor.forClass(CustomerIntakePort.CustomerData.class);
+        verify(customerIntakePort).identifyOrRegister(captor.capture());
+        assertEquals(new CustomerIntakePort.AddressData("Avenida Paulista", "1000", "Conjunto 101", "Bela Vista",
+                "São Paulo", "SP", "01310-100"), captor.getValue().address());
     }
 
     @Test

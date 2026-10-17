@@ -11,5 +11,5 @@ public record IntakeServiceRequest(
         @NotNull UUID catalogServiceId,
         @Size(max = 20, message = "Cada serviço aceita no máximo 20 peças")
         @Valid
-        List<IntakePartRequest> parts) {
+        List<@NotNull(message = "A peça não pode ser nula") IntakePartRequest> parts) {
 }

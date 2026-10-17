@@ -171,6 +171,12 @@ class ServiceOrderIntakeControllerTest {
                         + "\"parts\": [ { \"stockItemId\": \"%s\", \"quantity\": 0 } ] } ] }")
                         .formatted(customer, vehicle, UUID.randomUUID(), UUID.randomUUID()),
                 "{ %s, %s, \"initialAssessment\": \"Triagem\", \"services\": [ { } ] }".formatted(customer, vehicle),
+                // Null list elements are not cascaded by @Valid; without element constraints they reach the use case.
+                "{ %s, %s, \"initialAssessment\": \"Triagem\", \"services\": [ null ] }".formatted(customer, vehicle),
+                ("{ %s, %s, \"initialAssessment\": \"Triagem\", \"services\": [ { \"catalogServiceId\": \"%s\", "
+                        + "\"parts\": [ null ] } ] }").formatted(customer, vehicle, UUID.randomUUID()),
+                ("{ \"customer\": { \"document\": \"529.982.247-25\", \"contactInfo\": { \"address\": "
+                        + "{ \"state\": \"SPX\" } } }, %s, \"initialAssessment\": \"Triagem\" }").formatted(vehicle),
                 "{ %s, %s, \"initialAssessment\": \"Triagem\", \"services\": [ %s ] }".formatted(customer, vehicle,
                         String.join(", ", java.util.Collections.nCopies(21,
                                 "{ \"catalogServiceId\": \"%s\" }".formatted(UUID.randomUUID())))));
