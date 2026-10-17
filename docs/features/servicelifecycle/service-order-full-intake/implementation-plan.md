@@ -35,7 +35,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 |---:|---|---|
 | 0 | Preparar a execução | Completed |
 | 1 | APIs públicas de registration (Customer e Vehicle intake) | Completed |
-| 2 | APIs de cotação (Catalog Service e Stock Item) | Pending |
+| 2 | APIs de cotação (Catalog Service e Stock Item) | Completed |
 | 3 | Portas, adapters e exceções em `servicelifecycle` | Pending |
 | 4 | Caso de uso orquestrador | Pending |
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Pending |
@@ -261,6 +261,18 @@ manuais.
     casos de rejeição. O resultado HTTP previsto (`409 VEHICLE_CHASSIS_ALREADY_EXISTS`) não muda.
   - Customer inexistente ou inativo ao cadastrar o Vehicle (só possível com arquivamento concorrente entre os dois
     passos) lança `IllegalStateException`, mapeada hoje em `servicelifecycle` como `409 INVALID_STATE_TRANSITION`.
+
+### CP2 — 2026-10-16
+
+- Código: `CatalogServiceQuoteApi`/`CatalogServiceQuote` no pacote `servicecatalog/application/api` existente, com
+  `QuoteCatalogServiceUseCase` (lock por `findByIdForUpdate`, como a checagem de disponibilidade);
+  `stock/application/api` (nova named interface `stock-item-quote-api`) com `StockItemQuoteApi`/`StockItemQuote` e
+  `QuoteStockItemsUseCase` (IDs deduplicados e ordenados antes do `findAllByIdForUpdate`, mesma ordem de lock da
+  avaliação de estoque, para evitar deadlock). Ambas com `Propagation.MANDATORY`.
+- Testes novos: `QuoteCatalogServiceUseCaseTest` (3), `QuoteStockItemsUseCaseTest` (3) e
+  `QuoteApisTransactionIntegrationTest` (1, exige transação do consumidor).
+- `ModuleStructureTest`: 2/2 verdes.
+- `./mvnw -q test`: 174 suítes, **856 testes** (849 + 7), 0 falhas, 0 erros, 0 ignorados.
 
 ## Rollback ou recuperação
 

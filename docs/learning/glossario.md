@@ -165,6 +165,14 @@ Interface é esse "balcão público" do módulo, por exemplo o pacote `applicati
 almoxarifado atende pela janela, e ninguém entra na prateleira dele. Ver a
 [ADR-005](../adr/ADR-005-inter-module-integration-contract.md).
 
+### Deadlock e ordem de lock
+
+Deadlock é quando duas transações esperam uma pela outra para sempre: A trancou a peça 1 e quer a 2, enquanto B
+trancou a 2 e quer a 1. O banco detecta e derruba uma delas. A prevenção clássica é sempre trancar na **mesma ordem**
+(aqui, IDs ordenados). Analogia: dois mecânicos pegando chave e macaco; se ambos pegam primeiro a chave, ninguém trava.
+Ver `QuoteStockItemsUseCase` no
+[CP2](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Teste unitário, teste de integração e mock
 
 Teste unitário testa uma classe isolada, trocando as dependências por **mocks** (dublês do Mockito que respondem o que
