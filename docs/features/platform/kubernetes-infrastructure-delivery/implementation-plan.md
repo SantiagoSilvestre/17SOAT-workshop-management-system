@@ -33,15 +33,20 @@
 
 ### CP1 — Container (passo 4, previsto 17/10)
 
-- [ ] `Dockerfile`: remover `wait-for-mysql.sh` e a instalação de pacotes; `USER 1000`;
+**Status: Completed (2026-10-17).**
+
+- [x] `Dockerfile`: remover `wait-for-mysql.sh` e a instalação de pacotes; `USER 1000`;
       `ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"`; `ENTRYPOINT ["java", "-jar", "/app/app.jar"]`.
-- [ ] Apagar `docker/wait-for-mysql.sh`.
-- [ ] `docker-compose.yml`: contrato D1 (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`); remover `DDL_AUTO`/`SHOW_SQL`;
-      repassar `SUPPLIER_API_KEY`; Mailpit com tag fixa; healthcheck do app em `/actuator/health/readiness` (entra
-      no CP2, quando o endpoint existir).
-- [ ] `.env.example`: remover `JAVA_OPTS`, `DDL_AUTO` e `SHOW_SQL`; documentar `SUPPLIER_API_KEY`.
-- [ ] `application.properties`: remover a linha duplicada `app.seed.enabled=${APP_SEED_ENABLED:true}`.
-- [ ] Atualizar as referências do README ao compose e ao `wait-for-mysql.sh`.
+- [x] Apagar `docker/wait-for-mysql.sh`.
+- [x] `docker-compose.yml`: contrato D1 (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`); remover `DDL_AUTO`/`SHOW_SQL`;
+      repassar `SUPPLIER_API_KEY`; Mailpit com tag fixa (`v1.31.4`). O healthcheck do app em
+      `/actuator/health/readiness` foi movido para o CP2, quando o endpoint existir (`curl` já existe na imagem base).
+- [x] `.env.example`: remover `JAVA_OPTS`, `DDL_AUTO` e `SHOW_SQL`; documentar `SUPPLIER_API_KEY`.
+- [x] `application.properties`: linha duplicada `app.seed.enabled` — **N/A**: na leitura de 2026-10-17 o arquivo tem
+      só `app.seed.enabled=false`, e o `application-dev.properties` reativa por `APP_SEED_ENABLED` (comportamento
+      esperado). Nada a remover.
+- [x] Atualizar as referências do README (e do `DOCKER.md`) ao compose e ao `wait-for-mysql.sh`.
+- [x] Extra (achado da abertura de OS, sessão 4): `.gitattributes` com `*.sh text eol=lf`.
 
 Verificação: `docker compose up -d --build` → API responde em `localhost:8080`; `docker compose exec app id -u` = `1000`;
 `docker image inspect` sem segredos em `Env`; `make verify` verde.
@@ -190,6 +195,11 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 
 | Checkpoint | Evidência | Data |
 |---|---|---|
+| CP1 | `./mvnw clean verify`: exit 0, 926 testes, 0 falhas, 0 ignorados | 2026-10-17 |
+| CP1 | `docker compose up -d --build` (Santiago): app `Up`, MySQL/Mailpit/WireMock `healthy`, Mailpit `v1.31.4` | 2026-10-17 |
+| CP1 | `docker compose exec app id -u` → `1000`; `echo $JAVA_TOOL_OPTIONS` → `-XX:MaxRAMPercentage=75.0` | 2026-10-17 |
+| CP1 | `docker image inspect ... .Config.Env` → só `PATH`, `JAVA_HOME`, `LANG*`, `JAVA_VERSION`, `JAVA_TOOL_OPTIONS` (sem segredos) | 2026-10-17 |
+| CP1 | `GET /swagger-ui.html` → `302` (redirect do springdoc para `/swagger-ui/index.html`): API no ar em `localhost:8080` | 2026-10-17 |
 | — | — | — |
 
 ## Rollback ou recuperação

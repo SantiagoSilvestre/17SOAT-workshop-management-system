@@ -34,8 +34,10 @@ make docker-up
 
 ## Configuration
 
-See `.env.example` for database, port, profile and seed settings. Production-like environments must use
-`DDL_AUTO=validate`, leave demonstration seeds disabled and manage credentials externally.
+See `.env.example` for database, port, profile and seed settings. The application reads the database through
+`DB_URL`, `DB_USERNAME` and `DB_PASSWORD`, the same contract used in Kubernetes. The schema is always validated
+(`ddl-auto=validate`) after Flyway runs. Production-like environments must leave demonstration seeds disabled and
+manage credentials externally.
 
 Swagger UI is available at `http://localhost:8080/swagger-ui.html` after startup.
 

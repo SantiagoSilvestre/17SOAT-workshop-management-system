@@ -31,6 +31,56 @@ mínimo"). Se não dá para testar, não é critério de aceite. Analogia: o che
 
 ## Containers
 
+### Container x VM
+
+Uma VM simula um computador inteiro, com sistema operacional próprio; um container é só um processo isolado que
+compartilha o kernel (o núcleo do sistema operacional) da máquina. Por isso o container sobe em segundos e ocupa
+megabytes, não gigabytes. Analogia: a VM é uma oficina inteira alugada; o container é um box dentro da mesma oficina.
+
+### Imagem, Dockerfile e camadas
+
+A imagem é o "molde" somente leitura de onde os containers nascem; o [Dockerfile](../../Dockerfile) é a receita
+dela. Cada instrução (`COPY`, `RUN`) gera uma camada, e o Docker reaproveita (cacheia) as camadas que não mudaram: por
+isso o `pom.xml` é copiado antes do `src`. Analogia: o kit de peças padrão montado uma vez e reutilizado em cada box.
+
+### Multi-stage build
+
+Dockerfile com mais de um `FROM`: o primeiro estágio (Maven + JDK) compila; o último (só JRE) recebe apenas o `.jar`
+por `COPY --from`. A imagem final não leva compilador nem código-fonte: fica menor e com menos vulnerabilidades. Ver o
+[Dockerfile](../../Dockerfile).
+
+### Usuário não-root e UID numérico
+
+O processo roda como `USER 1000`, e não como root (administrador): se alguém explorar uma falha da aplicação, não
+ganha poder sobre o container. O UID numérico permite ao Kubernetes verificar `runAsNonRoot`; com um nome, ele não
+sabe se o usuário é root. Analogia: o estagiário tem crachá de box, não a chave do cofre.
+
+### `ENTRYPOINT` na forma exec, PID 1 e `SIGTERM`
+
+Na forma exec (`["java", "-jar", ...]`) a JVM é o PID 1, o primeiro processo do container, e recebe o `SIGTERM` (o
+aviso "termine o que está fazendo") quando o Docker ou o Kubernetes param o container. Um script na frente só é seguro
+se terminar com `exec "$@"` (que troca o bash pela JVM); sem o `exec`, o sinal para no bash e a JVM é morta à força
+(`SIGKILL`) depois do prazo. Ver o [Dockerfile](../../Dockerfile).
+
+### `JAVA_TOOL_OPTIONS` e `MaxRAMPercentage`
+
+`JAVA_TOOL_OPTIONS` é lida pela própria JVM em qualquer forma de inicialização (o antigo `JAVA_OPTS` só funcionava
+com um script que o repassasse, e era ignorado). `-XX:MaxRAMPercentage=75.0` limita o heap a 75% da memória do
+container, deixando o resto para threads e metaspace: com limite de 1 Gi, o heap fica em ~768 Mi.
+
+### Variáveis de ambiente e contrato `DB_*`
+
+Valores entregues ao processo de fora do código (`DB_URL`, `DB_PASSWORD`): a mesma imagem roda no compose, no kind e
+na AWS, mudando só o ambiente. O projeto usa um único nome por configuração (D1 da
+[technical-spec](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md)). Analogia: a mesma
+ferramenta, calibrada de outro jeito em cada oficina.
+
+### `depends_on` com `service_healthy`
+
+No [docker-compose.yml](../../docker-compose.yml), o app só é iniciado quando o healthcheck do MySQL passa. Isso
+substituiu o `wait-for-mysql.sh`, que exigia `mysql-client` e `netcat` na imagem; no Kubernetes, quem segura o
+tráfego até o banco responder é a readiness.
+
 ### Tag de imagem
 
 Etiqueta que identifica uma versão de uma imagem (`app:3d0cdb3`). Sem tag, o Docker usa `latest`, um nome
