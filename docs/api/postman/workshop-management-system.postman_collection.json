@@ -1500,8 +1500,12 @@
                   "    const digit = () => String(Math.floor(Math.random() * 10));",
                   "    return letter() + letter() + letter() + digit() + letter() + digit() + digit();",
                   "}",
-                  "pm.collectionVariables.set('intakeCustomerTaxId', generateValidCpf());",
-                  "pm.collectionVariables.set('intakeLicensePlate', randomMercosulPlate());"
+                  "const intakeCustomerTaxId = generateValidCpf();",
+                  "const intakeLicensePlate = randomMercosulPlate();",
+                  "pm.collectionVariables.set('intakeCustomerTaxId', intakeCustomerTaxId);",
+                  "pm.environment.set('intakeCustomerTaxId', intakeCustomerTaxId);",
+                  "pm.collectionVariables.set('intakeLicensePlate', intakeLicensePlate);",
+                  "pm.environment.set('intakeLicensePlate', intakeLicensePlate);"
                 ]
               }
             },
