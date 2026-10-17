@@ -194,6 +194,59 @@ próprios probes; por isso ele não está na imagem.
 Forma padrão de o Deployment trocar de versão: sobe os pods novos e só desliga os antigos quando os novos ficam
 prontos. Se a versão nova nunca fica pronta, a antiga continua atendendo.
 
+### Deployment e ReplicaSet
+
+O Deployment é o plano permanente ("N cópias desta imagem com esta configuração"); ele cria um ReplicaSet, que só
+mantém N pods vivos e repõe quem morre. Cada mudança no template do pod gera um ReplicaSet novo, e o rolling update
+passa as réplicas do antigo para o novo (`maxSurge`/`maxUnavailable`). Com HPA, o Deployment **não** declara
+`replicas`. Analogia: chefe de oficina (plano) e encarregado de turma (repõe mecânicos). Ver
+[app-deployment.yaml](../../k8s/base/app-deployment.yaml).
+
+### `rollout undo`, revisões e `last-applied-configuration`
+
+`kubectl rollout undo` reativa o ReplicaSet anterior (a revisão volta com número novo no `rollout history`). O aviso
+sobre `last-applied-configuration` lembra que o cluster pode divergir do Git: o `apply` compara com essa anotação. A
+correção definitiva vai para o arquivo; `kubectl diff -k` mostra se ainda há divergência.
+
+### `CrashLoopBackOff` e código de saída
+
+O container encerra sozinho (ex.: Flyway sem achar o host do banco), o kubelet o reinicia com espera crescente
+(10 s, 20 s, 40 s...) e mostra `CrashLoopBackOff` entre as tentativas. É diferente da liveness, que mata um processo
+vivo. A JVM encerrada por `SIGTERM` sai com código 143 (128 + 15), por isso um pod em desligamento normal aparece como
+`Error` por um instante.
+
+### `securityContext`
+
+Regras de segurança do processo: `runAsNonRoot`/`runAsUser`, `allowPrivilegeEscalation: false`,
+`readOnlyRootFilesystem`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`. Analogia: crachá de
+funcionário, não de dono. Imagens de terceiros que rodam como root não aceitam `runAsNonRoot`. Ver
+[app-deployment.yaml](../../k8s/base/app-deployment.yaml).
+
+### `emptyDir`
+
+Pasta temporária gravável que nasce e morre com o pod. É o que permite `readOnlyRootFilesystem`: só `/tmp` (Tomcat,
+JVM) fica gravável.
+
+### Generator do Kustomize (hash no nome)
+
+`configMapGenerator`/`secretGenerator` criam o objeto com um sufixo que é o hash do conteúdo
+(`workshop-app-config-gbdf27b9fm`). Mudar um valor muda o nome referenciado pelo Deployment e dispara um rolling
+update; sem isso, os pods ficariam com o valor antigo. `behavior: merge` deixa o overlay acrescentar chaves ao
+generator da base.
+
+### containerd, `ctr` e carregar imagem no kind
+
+O node do kind tem o próprio containerd (o motor que roda os containers do Kubernetes) e não enxerga as imagens do
+Docker Desktop. Carregar = `docker save` → `docker cp` → `ctr --namespace=k8s.io images import`; `crictl images`
+mostra o que o kubelet vê. Dentro do node, `/tmp` é `tmpfs` (memória): o `docker cp` grava por baixo da montagem e o
+arquivo some, por isso usamos `/var/tmp`.
+
+### Calibração de probe x correção estrutural
+
+A `startupProbe` subiu de 3 para 5 min porque o 1º boot em banco vazio (25 migrations) levou 165 s, e o boot com
+banco migrado leva 27 s. Calibrar com evidência resolve o prazo; a correção estrutural seria separar as migrations
+do boot (Job de migração), porque a probe passou a ser, sem querer, o prazo das migrations.
+
 ### startupProbe
 
 Terceira verificação de saúde, válida só durante o boot. Enquanto ela não passa, a liveness não é feita; assim um boot

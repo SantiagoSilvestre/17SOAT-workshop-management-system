@@ -125,12 +125,39 @@ Commit sugerido: `feat(platform): provision local kind cluster, metrics-server a
 
 ### CP5 — Manifestos e HPA (passo 8, previsto 20/10)
 
-- [ ] `k8s/base`: Deployment, Service, ConfigMap, HPA, Mailpit e WireMock, conforme a technical-spec.
-- [ ] `k8s/overlays/local`: NodePort 30080/30025, HPA 1–3, perfil `dev` com seeds, imagem
+**Status: In Progress (2026-10-17): deploy verificado (7 de 10 critérios); teste de carga/HPA (escala sobe, desce e
+mesmo endereço) na próxima sessão.**
+
+- [x] `k8s/base`: Deployment, Service, ConfigMap, HPA, Mailpit e WireMock, conforme a technical-spec.
+- [x] `k8s/overlays/local`: NodePort 30080/30025, HPA 1–3, perfil `dev` com seeds, imagem
       `workshop-management-system:local`, `secretGenerator` e `secrets.env.example`.
-- [ ] Makefile: `k8s-local-deploy` (build `:local`, `kind load`, ConfigMap do WireMock a partir de
+- [x] Makefile: `k8s-local-deploy` (build `:local`, `kind load`, ConfigMap do WireMock a partir de
       `docker/wiremock/mappings`, `kubectl apply -k`), `k8s-local-delete` e `load-test`.
-- [ ] `load-test/hpa-load.js` (k6) com limiares `http_req_failed < 1%` e `p(95) < 2s`.
+- [x] `load-test/hpa-load.js` (k6) com limiares `http_req_failed < 1%` e `p(95) < 2s`.
+
+Desvios registrados:
+
+- **ConfigMap do app:** em vez de `app-configmap.yaml` + um segundo ConfigMap no overlay, a base usa
+  `configMapGenerator` (`workshop-app-config`, a partir de `app-config.env`) e o overlay faz `behavior: merge` com
+  `SPRING_PROFILES_ACTIVE=dev`/`APP_SEED_ENABLED=true`. Motivo: um único ConfigMap com hash no nome (mudança de
+  configuração dispara rolling update) e a base continua válida sozinha para o overlay `aws`.
+- **`kind load`:** o CLI do kind não é pré-requisito, então o deploy faz o que o `kind load docker-image` faz por
+  dentro: `docker save --platform linux/<arch>` → `docker cp` para o node → `ctr --namespace=k8s.io images import`.
+  O `--platform` evita a falha de import com o containerd image store do Docker Desktop (atestações sem conteúdo).
+  O destino é `/var/tmp`, não `/tmp`: no node do kind, `/tmp` é `tmpfs`, e o `docker cp` gravou por baixo da montagem
+  (`ctr: open /tmp/...: no such file or directory`, observado em 2026-10-17).
+- **k6:** o script é montado por volume (`-v .../load-test:/scripts:ro`) em vez de `run - < arquivo`, porque o
+  PowerShell 5.1 não aceita o operador `<`; `--add-host=host.docker.internal:host-gateway` para funcionar também no
+  Linux (pipeline). Imagem `grafana/k6:1.3.0`.
+- **HPA 1–3 e janela de 60 s ficam na base** (valores locais); o overlay `aws` sobrescreve.
+- **`startupProbe` 3 → 5 min (`failureThreshold` 36 → 60), calibração aprovada pelo Santiago (2026-10-17):** o
+  primeiro boot em banco vazio levou **165,6 s** (Flyway aplicou 25 migrations em 2m18s), a 14 s do limite de 180 s
+  da technical-spec; com o banco já migrado, o pod recriado ficou pronto em 27 s. Matar o container no meio de uma
+  migration deixaria DDL do MySQL (não transacional) pela metade. 5 min cabem no `progressDeadlineSeconds: 300`. É
+  um valor calibrado com evidência, não estrutural: a lentidão do MySQL local (~5,5 s por migration) está em
+  investigação.
+- **Imagem `:local` reconstruída:** o Deployment não muda (mesma tag), então o deploy faz `rollout restart` quando ele
+  já existe.
 
 Verificação (Santiago executa e registra):
 
@@ -211,7 +238,8 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Respostas de erro | Health não expõe detalhes | Baixa | `show-details`/`show-components=never` em `actuator.properties`, importado também pelos testes; banco fora → só `{"status":"DOWN"}` | Resolvido (CP2) |
 | Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
 | Abuso de endpoints | Health pode ser chamado em massa | Baixa | resposta barata; sem cache; fora de escopo limitar taxa | Pendente |
-| Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` | Pendente (CP5) |
+| Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` do app: `runAsNonRoot`/`runAsUser: 1000`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem` (só `/tmp` em `emptyDir` de 256 Mi), `drop: [ALL]`, `seccomp RuntimeDefault`, `automountServiceAccountToken: false`; o app subiu sem `Read-only file system`. Mailpit/WireMock (imagens de terceiros): `allowPrivilegeEscalation: false` + seccomp, sem token | Resolvido (CP5) |
+| Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, considerar `kubectl apply --server-side`, que não grava essa anotação | Aceito (local); revisar no CP8 |
 | `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
 | Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada | Aceito (local); revisar no CP6 |
 | Senhas do MySQL local | Geradas por `random_password` (24 caracteres), entregues por Secret; nunca aparecem no plano, só no state | Baixa | state fora do git (CP3); `describe` mostra só a origem (`secret_key_ref`); MySQL só `ClusterIP`, sem porta no Windows | Resolvido (CP4) |
@@ -239,6 +267,16 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP4 | `database`: `plan` → `8 to add` (Secrets e senhas como `sensitive value`); `apply` → `8 added`; `mysql-0 1/1 Running`, 0 restarts; PVC `data-mysql-0 Bound 1Gi standard` em `workshop`; PV com `RECLAIM POLICY Delete`; `top pods` → `12m`, `424Mi` | 2026-10-17 |
 | CP4 | Readiness falhou 18× durante a primeira inicialização (~95 s, servidor temporário com `port: 0`) sem reiniciar o pod; `SHOW DATABASES` como `workshop_user` com a senha do Secret `workshop-db` → `workshop` (D6 comprovada) | 2026-10-17 |
 | CP4 | Persistência: `CREATE TABLE prova` + `INSERT 42` → `kubectl delete pod mysql-0` → pod recriado `1/1` em 14 s → `SELECT` → `42` | 2026-10-17 |
+| CP5 | `kubectl kustomize k8s/overlays/local` → 8 objetos; ConfigMap `workshop-app-config-gbdf27b9fm` e Secret `workshop-app-dt9kffbhb5` com hash; NodePorts 30080/30025 | 2026-10-17 |
+| CP5 | Imagem no node (Santiago): `docker save --platform linux/amd64` → `docker cp` para `/var/tmp` → `ctr -n k8s.io images import` → `crictl images` lista `docker.io/library/workshop-management-system local 0002eb3fea1ce 165MB` (mesmo config digest do build). Tentativa em `/tmp` falhou: `tmpfs` no node | 2026-10-17 |
+| CP5 | `kubectl apply -k k8s/overlays/local` → 9 objetos `created`; `rollout status` → `successfully rolled out`; 4 pods `1/1`, 0 restarts | 2026-10-17 |
+| CP5 | Log: Flyway `Successfully applied 25 migrations ... now at version v20260926043630 (execution time 02:18.305s)`; `Started ... in 165.559 seconds` (banco vazio) | 2026-10-17 |
+| CP5 | `curl localhost:8080/actuator/health/readiness` → `{"status":"UP"}`; `describe deployment` → `envFrom` com `workshop-app-config-*`/`workshop-db` (ConfigMaps) e `workshop-db`/`workshop-app-*` (Secrets), sem valores | 2026-10-17 |
+| CP5 | Recriação: `kubectl delete pod -l app.kubernetes.io/name=workshop-app` → pod novo do mesmo ReplicaSet `1/1` em 27 s (banco já migrado) | 2026-10-17 |
+| CP5 | Persistência: `POST /api/customers` (CPF 529.982.247-25) → id `13008937-...`; `kubectl delete pod mysql-0` → `mysql-0` `1/1` em 20 s; app `0/1` (readiness) e de volta a `1/1` sem restart; `GET /api/customers/{id}` → cliente presente. CPF 111.444.777-35 → 409 (já criado pelo seed `dev`, D10 comprovada) | 2026-10-17 |
+| CP5 | Rolling update (probe 36 → 60): `apply -k` → ReplicaSet novo `5d589d5c8c`; 2 pods durante ~30 s; o antigo só terminou depois que o novo ficou `1/1` (`maxSurge: 1`, `maxUnavailable: 0`) | 2026-10-17 |
+| CP5 | Versão ruim: `set env DB_URL=jdbc:mysql://inexistente:3306/x` → pod novo `Error`/`CrashLoopBackOff` (3 restarts em 96 s); antigo `1/1`; readiness `UP`; `get rs` → `5d589d5c8c 1/1/1`, `76bfc6cd55 1/1/0`; `rollout undo` → `76bfc6cd55` a 0; `kubectl diff -k` → sem diferenças | 2026-10-17 |
+| CP5 | Postman: 27 passos do `make e2e` (Newman, um processo por pasta) contra `localhost:8080` → 27/27. Corrigido antes: o pre-request de `Open full intake with services` gravava `intakeCustomerTaxId`/`intakeLicensePlate` só como variável de collection, perdida entre processos do Newman (`Run Open full intake with services first`); agora grava também no environment | 2026-10-17 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação

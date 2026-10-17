@@ -11,7 +11,7 @@ COMPOSE := docker compose
 
 .PHONY: help test coverage verify compile build clean run run-dev \
 	docker-build docker-up docker-up-interactive docker-down docker-reset docker-logs docker-ps db-shell e2e \
-	sca dast infra-local-up infra-local-down
+	sca dast infra-local-up infra-local-down k8s-local-deploy k8s-local-delete
 
 help:
 	@echo "Workshop Management System"
@@ -36,6 +36,8 @@ help:
 	@echo "Local Kubernetes (Terraform):"
 	@echo "  make infra-local-up    Create the kind cluster, metrics-server and MySQL (cluster, then database)"
 	@echo "  make infra-local-down  Destroy MySQL and its data, then the kind cluster"
+	@echo "  make k8s-local-deploy  Build and load the :local image, then apply k8s/overlays/local"
+	@echo "  make k8s-local-delete  Remove the app, Mailpit and WireMock (keeps MySQL and its data)"
 	@echo ""
 	@echo "Security:"
 	@echo "  make sca           Run OWASP Dependency-Check over every declared dependency"
@@ -200,3 +202,39 @@ infra-local-up:
 infra-local-down:
 	terraform -chdir=$(INFRA_LOCAL)/database destroy -auto-approve
 	terraform -chdir=$(INFRA_LOCAL)/cluster destroy -auto-approve
+
+# Local Kubernetes deploy. kind CLI is not a prerequisite (technical-spec), so the image is loaded the way
+# "kind load docker-image" does it internally: save it as a tar and import it into the node's containerd.
+# --platform keeps a single-platform archive: with Docker's containerd image store the image index also lists
+# attestation manifests whose content is absent, which makes the import fail.
+# /var/tmp, not /tmp: /tmp is a tmpfs inside the kind node, so "docker cp" would write underneath the mount and
+# the file would be invisible to ctr.
+K8S_LOCAL := k8s/overlays/local
+KIND_NODE := workshop-control-plane
+LOCAL_IMAGE := workshop-management-system:local
+LOCAL_IMAGE_TAR := target/workshop-app-local.tar
+LOCAL_PLATFORM = linux/$(shell docker version --format '{{.Server.Arch}}')
+
+k8s-local-deploy:
+	@test -f $(K8S_LOCAL)/secrets.env || cp $(K8S_LOCAL)/secrets.env.example $(K8S_LOCAL)/secrets.env
+	docker build -t $(LOCAL_IMAGE) .
+	@mkdir -p target
+	docker save --platform $(LOCAL_PLATFORM) -o $(LOCAL_IMAGE_TAR) $(LOCAL_IMAGE)
+	docker cp $(LOCAL_IMAGE_TAR) $(KIND_NODE):/var/tmp/workshop-app-local.tar
+	docker exec $(KIND_NODE) ctr --namespace=k8s.io images import /var/tmp/workshop-app-local.tar
+	docker exec $(KIND_NODE) rm /var/tmp/workshop-app-local.tar
+	@rm -f $(LOCAL_IMAGE_TAR)
+	kubectl create configmap supplier-simulator-mappings -n workshop --from-file=docker/wiremock/mappings \
+		--dry-run=client -o yaml | kubectl apply -f -
+# Same ":local" tag after a rebuild means an unchanged Deployment, so an existing one is restarted explicitly.
+	@if kubectl get deployment/workshop-app -n workshop >/dev/null 2>&1; then \
+		kubectl apply -k $(K8S_LOCAL) && kubectl rollout restart deployment/workshop-app -n workshop; \
+	else \
+		kubectl apply -k $(K8S_LOCAL); \
+	fi
+	kubectl rollout status deployment/workshop-app -n workshop --timeout=300s
+
+# Keeps the namespace, MySQL and its data (owned by Terraform).
+k8s-local-delete:
+	kubectl delete -k $(K8S_LOCAL) --ignore-not-found
+	kubectl delete configmap supplier-simulator-mappings -n workshop --ignore-not-found

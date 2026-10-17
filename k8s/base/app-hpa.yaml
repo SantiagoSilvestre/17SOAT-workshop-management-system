@@ -1,0 +1,34 @@
+# Utilization is measured against the container *requests* (250m CPU, 768Mi memory), reported by metrics-server.
+# min/max and the scale-down window below are the local values; the AWS overlay overrides them (2-4, 120 s).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: workshop-app
+  labels:
+    app.kubernetes.io/name: workshop-app
+    app.kubernetes.io/part-of: workshop-management-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: workshop-app
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # The JVM keeps most of its heap after a load peak; 85% of 768Mi (~650Mi) stays above the expected idle usage
+    # so memory alone should not pin the replica count. Adjust and record in the plan if it does.
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 85
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60
