@@ -137,6 +137,8 @@ db-shell:
 # would break later steps (e.g. archiving the customer the rest of the flow depends on).
 E2E_ENV_FILE := .e2e-newman-env.json
 E2E_STEPS := \
+	"Liveness probe" \
+	"Readiness probe" \
 	"Login (bootstrap admin)" \
 	"Create customer" \
 	"Create vehicle" \

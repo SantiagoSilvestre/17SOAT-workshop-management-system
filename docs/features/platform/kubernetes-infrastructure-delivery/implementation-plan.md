@@ -55,13 +55,22 @@ Commit sugerido: `refactor(platform): align container image and compose with env
 
 ### CP2 — Saúde (passo 5, previsto 17/10)
 
-- [ ] `pom.xml`: `spring-boot-starter-actuator`.
-- [ ] `application.properties`: propriedades `management.*` da technical-spec.
-- [ ] `SecurityConfig`: `permitAll()` só para `GET` nos três caminhos de health.
-- [ ] Testes MockMvc: liveness/readiness sem token; corpo sem `components`/`details`; `/actuator/env` e
-      `/actuator/beans` inacessíveis; com `db` em `DOWN`, readiness `503` e liveness `200`.
-- [ ] Healthcheck do app no compose.
-- [ ] Postman: pasta "Health" com os dois requests; README com a seção de verificação de saúde.
+**Status: Completed (2026-10-17).**
+
+- [x] `pom.xml`: `spring-boot-starter-actuator`.
+- [x] Propriedades `management.*` da technical-spec. **Desvio de implementação:** ficam em
+      `src/main/resources/actuator.properties`, importado por `spring.config.import` tanto pelo `application.properties`
+      principal quanto pelo de testes. O de testes tem o mesmo nome e sombreia o principal; sem o import, os testes
+      validariam uma cópia e não detectariam, por exemplo, a remoção de `show-details=never`. As propriedades e os
+      valores são os da technical-spec.
+- [x] `SecurityConfig`: `permitAll()` só para `GET` nos três caminhos de health.
+- [x] Testes MockMvc (`HealthEndpointTest`, `HealthEndpointDatabaseDownTest`): os três caminhos `200 UP` sem token e
+      sem `components`/`details`; `POST` → `401`; `/actuator/env` e `/actuator/beans` → `401` sem token e `404` com
+      token de `ADMIN` (não expostos); com o indicador `dbHealthIndicator` em `DOWN`, readiness `503` e liveness `200`.
+      Mutação manual (readiness sem `db` + `show-components=always`) → 3 testes vermelhos, depois restaurado.
+- [x] Healthcheck do app no compose (`curl -fsS` na readiness; `start_period: 180s`).
+- [x] Postman: pasta "Health" (`Liveness probe`, `Readiness probe`), primeiros passos do `make e2e`; README com a
+      seção "Verificação de saúde" (e remoção das mensagens do antigo `wait-for-mysql.sh`, que ficaram do CP1).
 
 Verificação: `make verify` verde (incluindo `ModuleStructureTest` e JaCoCo ≥ 80%); `docker compose ps` mostra o app
 `healthy`; `docker compose stop mysql` → readiness `503` e liveness `200`; `docker compose start mysql` → readiness
@@ -179,11 +188,11 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Item | Achado | Severidade | Mitigação | Status |
 |---|---|---|---|---|
 | Validação de entrada / mass assignment | Nenhum endpoint de negócio muda | N/A | — | N/A |
-| Autenticação e autorização | Health sem token, só `GET` em três caminhos | Baixa | sem detalhes/componentes; testes | Pendente (CP2) |
+| Autenticação e autorização | Health sem token, só `GET` em três caminhos | Baixa | sem detalhes/componentes; `POST` → 401; `/actuator/env` e `/beans` → 401 sem token e 404 com ADMIN (`HealthEndpointTest`; `curl` manual → 401) | Resolvido (CP2) |
 | Exposição de dados | Admin de bootstrap `admin/changeme123` exposto por endpoint público na AWS | **Alta** | `loadBalancerSourceRanges` com o IP do desenvolvedor e `destroy` após cada uso | Pendente (CP8) |
 | Segredos e logs | Secrets por environment; `secrets.env` não versionado; token mascarado | Média | `.gitignore` (CP3), `umask 077`, `::add-mask::`, revisão dos logs | Pendente |
 | Persistência e migrations | Nenhuma migration nova; state com senha do banco | Média | state local fora do git; S3 criptografado e privado | Pendente |
-| Respostas de erro | Health não expõe detalhes | Baixa | `show-details=never` | Pendente (CP2) |
+| Respostas de erro | Health não expõe detalhes | Baixa | `show-details`/`show-components=never` em `actuator.properties`, importado também pelos testes; banco fora → só `{"status":"DOWN"}` | Resolvido (CP2) |
 | Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
 | Abuso de endpoints | Health pode ser chamado em massa | Baixa | resposta barata; sem cache; fora de escopo limitar taxa | Pendente |
 | Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` | Pendente (CP5) |
@@ -200,7 +209,11 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP1 | `docker compose exec app id -u` → `1000`; `echo $JAVA_TOOL_OPTIONS` → `-XX:MaxRAMPercentage=75.0` | 2026-10-17 |
 | CP1 | `docker image inspect ... .Config.Env` → só `PATH`, `JAVA_HOME`, `LANG*`, `JAVA_VERSION`, `JAVA_TOOL_OPTIONS` (sem segredos) | 2026-10-17 |
 | CP1 | `GET /swagger-ui.html` → `302` (redirect do springdoc para `/swagger-ui/index.html`): API no ar em `localhost:8080` | 2026-10-17 |
-| — | — | — |
+| CP2 | `./mvnw clean verify`: exit 0, 936 testes (+10), 0 falhas, 0 ignorados; JaCoCo 94,5% instruções, 77,8% branches | 2026-10-17 |
+| CP2 | `docker compose up -d --build app` (Santiago) → `docker compose ps`: `workshop-app ... (healthy)` | 2026-10-17 |
+| CP2 | `curl` sem token: liveness `200 {"status":"UP"}`, readiness `200 {"status":"UP"}`, `/actuator/env` `401 UNAUTHORIZED` | 2026-10-17 |
+| CP2 | `docker compose stop mysql` → readiness `503 {"status":"DOWN"}`, liveness `200 {"status":"UP"}`, app `Up 8 minutes (unhealthy)` (não reiniciou) | 2026-10-17 |
+| CP2 | `docker compose start mysql` → readiness volta a `200 {"status":"UP"}` | 2026-10-17 |
 
 ## Rollback ou recuperação
 

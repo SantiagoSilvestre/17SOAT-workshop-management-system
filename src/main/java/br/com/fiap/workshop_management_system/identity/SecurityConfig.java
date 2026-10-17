@@ -45,6 +45,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // Kubernetes probes and the compose healthcheck call these without a token; the body never
+                        // carries components or details (actuator.properties). Any other /actuator/** stays behind
+                        // anyRequest().authenticated() and is not exposed at all.
+                        .requestMatchers(HttpMethod.GET,
+                                "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness")
+                        .permitAll()
 
                         .requestMatchers(HttpMethod.POST, "/api/auth/users").hasAuthority("ADMIN")
 

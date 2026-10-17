@@ -41,13 +41,37 @@ docker compose up -d --build
 docker logs -f workshop-app
 ```
 
-Aguarde as mensagens:
+A aplicação está pronta quando `docker compose ps` mostra `workshop-app` como `(healthy)`: o healthcheck do compose
+chama o mesmo endpoint de readiness usado pelo Kubernetes (ver [Verificação de saúde](#verificação-de-saúde)).
+
+### Verificação de saúde
+
+A API expõe dois endpoints públicos (sem token, somente `GET`) do Spring Boot Actuator, usados pelos probes do
+Kubernetes e pelo healthcheck do `docker-compose.yml`. A resposta contém só o status agregado, sem componentes nem
+detalhes; nenhum outro endpoint do Actuator é exposto.
+
+| Endpoint | Pergunta que responde | Depende do banco | Sucesso | Falha |
+| --- | --- | --- | --- | --- |
+| `GET /actuator/health/liveness` | O processo está vivo? (falha → reiniciar o container) | Não | `200 {"status":"UP"}` | `503` |
+| `GET /actuator/health/readiness` | Pode receber tráfego? (falha → sair do balanceamento) | Sim | `200 {"status":"UP"}` | `503 {"status":"DOWN"}` |
+
+```bash
+curl -i http://localhost:8080/actuator/health/liveness
+curl -i http://localhost:8080/actuator/health/readiness
 ```
-⏳ Aguardando MySQL em mysql:3306...
-✓ MySQL autenticação bem-sucedida - iniciando aplicação
-🚀 Iniciando aplicação...
-Tomcat started on port 8080
+
+Para ver a diferença entre os dois, pare o banco: a readiness passa a `503` e a liveness continua `200` (a aplicação
+não é reiniciada, apenas deixa de receber tráfego). Ao religar o banco, a readiness volta a `200`.
+
+```bash
+docker compose stop mysql
+curl -i http://localhost:8080/actuator/health/readiness   # 503
+curl -i http://localhost:8080/actuator/health/liveness    # 200
+docker compose start mysql
 ```
+
+Na coleção Postman, a pasta `Health` contém `Liveness probe` e `Readiness probe`; ambas são os primeiros passos do
+`make e2e`.
 
 O ambiente Docker local utiliza o perfil `dev` e carrega dados de demonstração idempotentes de Customer e Stock Item.
 Copie `.env.example` para `.env` para alterar esse comportamento. Os seeds ficam desativados no perfil padrão da
@@ -175,7 +199,8 @@ Sem GNU Make, use:
 docker compose up -d --build
 ```
 
-Espere a aplicação estar disponível em `http://localhost:8080/swagger-ui.html`, importe a coleção e mantenha as
+Espere a aplicação estar disponível (`docker compose ps` mostra `workshop-app` como `(healthy)`, ou
+`Health / Readiness probe` na coleção responde `200`), importe a coleção e mantenha as
 variáveis no escopo da coleção. Todos os endpoints administrativos exigem um JWT (`AD-016`,
 `docs/adr/ADR-003-authentication-strategy.md`), exceto os caminhos por HMAC do gateway externo de aprovação do
 Customer (RF40 e RF41, `docs/adr/ADR-007-external-gateway-hmac-authentication.md`); a coleção já está configurada

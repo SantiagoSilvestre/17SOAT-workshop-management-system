@@ -46,6 +46,64 @@
   ],
   "item": [
     {
+      "name": "Health",
+      "description": "Liveness and readiness probes used by Kubernetes and the docker-compose healthcheck. Public (no token), GET only, and the body carries only the aggregated status.",
+      "item": [
+        {
+          "name": "Liveness probe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Application is alive', function () { pm.expect(body.status).to.eql('UP'); });",
+                  "pm.test('Body exposes no components or details', function () {",
+                  "    pm.expect(body).to.not.have.any.keys('components', 'details');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/liveness"
+          }
+        },
+        {
+          "name": "Readiness probe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Application is ready (database reachable)', function () { pm.expect(body.status).to.eql('UP'); });",
+                  "pm.test('Body exposes no components or details', function () {",
+                  "    pm.expect(body).to.not.have.any.keys('components', 'details');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/readiness"
+          }
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "item": [
         {

@@ -127,13 +127,23 @@ Outra ferramenta de Kubernetes local, focada na experiência de desenvolvimento:
 cru (instala-se tudo manualmente), mas é mais leve, sobe mais rápido e é o padrão em pipelines de CI. Analogia:
 minikube é a oficina-escola com ferramentas já penduradas; kind é o galpão vazio que monta e desmonta rápido.
 
-### Liveness x readiness _(introdução)_
+### Liveness x readiness
 
 Duas perguntas diferentes que o Kubernetes faz à aplicação. **Liveness**: "você está vivo?"; se não, o pod é
 reiniciado. **Readiness**: "você consegue atender agora?"; se não, sai do Service até melhorar. A liveness não deve
 depender do banco, senão uma queda do banco reinicia todos os pods à toa. Analogia: o mecânico está no turno
 (liveness) x tem as ferramentas para pegar um carro agora (readiness). Ver
 [functional-spec da infra](../features/platform/kubernetes-infrastructure-delivery/functional-spec.md).
+No projeto, a liveness olha só o estado interno (`livenessState`) e a readiness olha `readinessState` + `db`
+([actuator.properties](../../src/main/resources/actuator.properties)). Banco fora → readiness `503` e liveness `200`,
+provado em [HealthEndpointDatabaseDownTest](../../src/test/java/br/com/fiap/workshop_management_system/HealthEndpointDatabaseDownTest.java).
+
+### Health check (healthcheck do compose)
+
+Comando que o orquestrador roda periodicamente para saber se o container está saudável. No
+[docker-compose.yml](../../docker-compose.yml), o app chama a readiness com `curl -f` (falha em 4xx/5xx), e o
+`start_period` dá tempo ao boot antes de contar falhas. O Kubernetes ignora o `HEALTHCHECK` do Dockerfile e usa os
+próprios probes; por isso ele não está na imagem.
 
 ### Rolling update _(introdução)_
 
@@ -199,7 +209,20 @@ providers e **é** versionado. Analogia: inventário do almoxarifado × lista de
 ### Actuator
 
 Módulo do Spring Boot que expõe endpoints operacionais prontos, como `/actuator/health/liveness` e `/readiness`, e já
-sabe checar o banco. Analogia: o painel de luzes do carro.
+sabe checar o banco. Analogia: o painel de luzes do carro. Aqui só `health` é exposto, sem token e sem detalhes
+(`show-details=never`): mostrar qual componente falhou ou a versão do banco ajudaria um atacante. A regra de acesso
+fica no [SecurityConfig](../../src/main/java/br/com/fiap/workshop_management_system/identity/SecurityConfig.java).
+
+### Arquivo de propriedades sombreado nos testes
+
+`src/test/resources/application.properties` tem o mesmo nome do arquivo principal e o **substitui** nos testes (vence
+o primeiro achado no classpath). A configuração que precisa ser testada de verdade fica num arquivo próprio, importado
+pelos dois (`spring.config.import=classpath:actuator.properties`); senão o teste validaria uma cópia.
+
+### Teste de mutação (manual)
+
+Quebrar o código ou a configuração de propósito e conferir que algum teste fica vermelho. No CP2 da infra, tirar o
+`db` da readiness e mostrar os componentes derrubou 3 testes: é a prova de que eles não são um falso verde.
 
 ### Clean Architecture / Hexagonal: porta e adapter
 
