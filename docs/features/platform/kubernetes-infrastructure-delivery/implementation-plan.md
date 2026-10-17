@@ -5,7 +5,7 @@
 | Feature | `kubernetes-infrastructure-delivery` |
 | Status | Approved |
 | Responsável | Santiago Silvestre |
-| Atualizado em | 2026-10-14 |
+| Atualizado em | 2026-10-17 |
 | Aprovado por | Santiago Silvestre |
 | Aprovado em | 2026-10-14 |
 | Especificação técnica | `./technical-spec.md` (Approved, Santiago Silvestre, 2026-10-14) |
@@ -97,15 +97,25 @@ Commit sugerido: `chore(platform): ignore terraform state, tfvars, kubeconfig an
 
 ### CP4 — `infra/local` (passo 7, previsto 19/10)
 
-- [ ] Verificar os pré-requisitos da máquina e registrar a saída.
-- [ ] Consultar o Terraform Registry e fixar as versões de `tehcyx/kind`, `hashicorp/helm`, `hashicorp/kubernetes`,
-      `hashicorp/random` e do chart `metrics-server`.
-- [ ] `infra/local/cluster`: cluster `workshop` (1 node, `extraPortMappings` 30080→8080 e 30025→8025) e
-      metrics-server com `--kubelet-insecure-tls`; outputs.
-- [ ] `infra/local/database`: namespace `workshop`, `random_password`, Secret `mysql-root`, ConfigMap/Secret
-      `workshop-db`, StatefulSet `mysql` com PVC de 1 Gi e Service `mysql`.
-- [ ] `.terraform.lock.hcl` das duas stacks versionados.
-- [ ] Makefile: `infra-local-up` e `infra-local-down`.
+**Status: Completed (2026-10-17, adiantado).**
+
+- [x] Verificar os pré-requisitos da máquina e registrar a saída. O Docker tinha 2,84 GiB/2 CPUs, limitado pelo
+      `~/.wslconfig`; ajustado para `memory=7GB`, `processors=5`, `swap=2GB` e `autoMemoryReclaim=gradual` (máquina
+      com 16 GB/12 CPUs lógicas).
+- [x] Consultar o Terraform Registry e fixar as versões (2026-10-17): `tehcyx/kind ~> 0.11.0`,
+      `hashicorp/helm ~> 3.3.0`, `hashicorp/kubernetes ~> 3.3.0`, `hashicorp/random ~> 3.9.0` e chart
+      `metrics-server` `3.14.0` (app `0.9.0`). Node `kindest/node:v1.35.0` fixado por digest (imagem padrão do kind
+      v0.31.0, embutido no provider).
+- [x] `infra/local/cluster`: cluster `workshop` (1 node, `extraPortMappings` 30080→8080 e 30025→8025) e
+      metrics-server com `--kubelet-insecure-tls`; outputs. **Desvio da nota do CP3:** o kubeconfig é mesclado em
+      `~/.kube/config` (fora do repositório) em vez de um arquivo `kubeconfig*` na stack, de modo que nenhuma
+      credencial nasce dentro do projeto; o `destroy` remove o contexto (comportamento lido no código do provider).
+- [x] `infra/local/database`: namespace `workshop`, `random_password`, Secret `mysql-root`, ConfigMap/Secret
+      `workshop-db`, StatefulSet `mysql` com PVC de 1 Gi e Service `mysql`. Readiness por `mysqladmin ping` em
+      `127.0.0.1` e, de propósito, sem liveness (a primeira inicialização leva ~95 s).
+- [x] `.terraform.lock.hcl` das duas stacks versionados, com checksums de `windows_amd64` e `linux_amd64`
+      (`terraform providers lock`), para a pipeline (CP6) conferir os mesmos binários.
+- [x] Makefile: `infra-local-up` e `infra-local-down`.
 
 Verificação (Santiago executa): `terraform init/plan/apply` nas duas stacks, em ordem; `kubectl get nodes` → `Ready`;
 `kubectl top nodes` responde (metrics-server ok); `kubectl get pods,pvc -n workshop` → `mysql-0` `Running` e PVC
@@ -202,7 +212,9 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
 | Abuso de endpoints | Health pode ser chamado em massa | Baixa | resposta barata; sem cache; fora de escopo limitar taxa | Pendente |
 | Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` | Pendente (CP5) |
-| `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável; EKS usa add-on | Pendente (CP4) |
+| `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
+| Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada | Aceito (local); revisar no CP6 |
+| Senhas do MySQL local | Geradas por `random_password` (24 caracteres), entregues por Secret; nunca aparecem no plano, só no state | Baixa | state fora do git (CP3); `describe` mostra só a origem (`secret_key_ref`); MySQL só `ClusterIP`, sem porta no Windows | Resolvido (CP4) |
 
 ## Evidências de verificação
 
@@ -221,6 +233,13 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP2 | `docker compose stop mysql` → readiness `503 {"status":"DOWN"}`, liveness `200 {"status":"UP"}`, app `Up 8 minutes (unhealthy)` (não reiniciou) | 2026-10-17 |
 | CP2 | `docker compose start mysql` → readiness volta a `200 {"status":"UP"}` | 2026-10-17 |
 | CP3 | Arquivos fictícios + `git check-ignore -v`/`git status`: ignorados `terraform.tfstate`, `.tfstate.backup`, `.terraform/`, `kubeconfig`, `terraform.tfvars`, `aws.tfplan`, `crash.log`, `k8s/overlays/{local,aws}/secrets.env`; versionáveis `.terraform.lock.hcl`, `terraform.tfvars.example`, `secrets.env.example`. Fictícios apagados | 2026-10-17 |
+| CP4 | Pré-requisitos (Santiago): `terraform version` → `v1.16.6`; `kubectl version --client` → `v1.36.1` (Kustomize `v5.8.1`); `docker info` → `7273299968 5` (6,77 GiB, 5 CPUs) após o ajuste do `.wslconfig` | 2026-10-17 |
+| CP4 | `terraform fmt -check -recursive infra` → exit 0 | 2026-10-17 |
+| CP4 | `cluster`: `plan` → `2 to add`; `apply` → `2 added`; `kubectl get nodes` → `workshop-control-plane Ready v1.35.0`; metrics-server `1/1 Running`, 0 restarts; `kubectl top nodes` → `124m`, `573Mi`; `docker ps` → `0.0.0.0:8080->30080`, `0.0.0.0:8025->30025`, `127.0.0.1:59720->6443` | 2026-10-17 |
+| CP4 | `database`: `plan` → `8 to add` (Secrets e senhas como `sensitive value`); `apply` → `8 added`; `mysql-0 1/1 Running`, 0 restarts; PVC `data-mysql-0 Bound 1Gi standard` em `workshop`; PV com `RECLAIM POLICY Delete`; `top pods` → `12m`, `424Mi` | 2026-10-17 |
+| CP4 | Readiness falhou 18× durante a primeira inicialização (~95 s, servidor temporário com `port: 0`) sem reiniciar o pod; `SHOW DATABASES` como `workshop_user` com a senha do Secret `workshop-db` → `workshop` (D6 comprovada) | 2026-10-17 |
+| CP4 | Persistência: `CREATE TABLE prova` + `INSERT 42` → `kubectl delete pod mysql-0` → pod recriado `1/1` em 14 s → `SELECT` → `42` | 2026-10-17 |
+| CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação
 

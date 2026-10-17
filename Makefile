@@ -11,7 +11,7 @@ COMPOSE := docker compose
 
 .PHONY: help test coverage verify compile build clean run run-dev \
 	docker-build docker-up docker-up-interactive docker-down docker-reset docker-logs docker-ps db-shell e2e \
-	sca dast
+	sca dast infra-local-up infra-local-down
 
 help:
 	@echo "Workshop Management System"
@@ -32,6 +32,10 @@ help:
 	@echo "  make docker-reset  Stop containers and DELETE the local MySQL volume"
 	@echo "  make docker-logs   Follow application logs"
 	@echo "  make db-shell      Open the MySQL client"
+	@echo ""
+	@echo "Local Kubernetes (Terraform):"
+	@echo "  make infra-local-up    Create the kind cluster, metrics-server and MySQL (cluster, then database)"
+	@echo "  make infra-local-down  Destroy MySQL and its data, then the kind cluster"
 	@echo ""
 	@echo "Security:"
 	@echo "  make sca           Run OWASP Dependency-Check over every declared dependency"
@@ -182,3 +186,17 @@ e2e:
 		fi; \
 	done
 	@rm -f $(E2E_ENV_FILE)
+
+# Convenience shortcuts: while learning, run the terraform commands directly and read every plan first.
+# Order matters: the database stack needs the cluster, so it is applied after it and destroyed before it.
+INFRA_LOCAL := infra/local
+
+infra-local-up:
+	terraform -chdir=$(INFRA_LOCAL)/cluster init
+	terraform -chdir=$(INFRA_LOCAL)/cluster apply -auto-approve
+	terraform -chdir=$(INFRA_LOCAL)/database init
+	terraform -chdir=$(INFRA_LOCAL)/database apply -auto-approve
+
+infra-local-down:
+	terraform -chdir=$(INFRA_LOCAL)/database destroy -auto-approve
+	terraform -chdir=$(INFRA_LOCAL)/cluster destroy -auto-approve

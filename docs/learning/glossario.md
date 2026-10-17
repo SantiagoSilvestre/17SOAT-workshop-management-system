@@ -101,6 +101,19 @@ Sem `--build`, o Compose reaproveita a imagem que já existe, mesmo com o códig
 recompila a imagem antes de subir. Sintoma de imagem velha: endpoint novo ausente no Swagger. Ver
 [docker-compose.yml](../../docker-compose.yml).
 
+### WSL2 e `.wslconfig`
+
+No Windows, o Docker Desktop roda os containers dentro de uma VM Linux leve (WSL2). O `~/.wslconfig` define o teto de
+memória e de CPUs dessa VM; são tetos, não reservas. Mudanças só valem após `wsl --shutdown`. Analogia: o tamanho do
+galpão alugado: não cabem mais boxes do que o galpão comporta. Ajustado para 7 GB/5 CPUs no
+[CP4 da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md).
+
+### Digest de imagem
+
+Impressão digital (`@sha256:...`) do conteúdo exato de uma imagem. A tag (`v1.35.0`) pode ser republicada; o digest,
+não. Fixar por digest garante a mesma imagem no PC e na pipeline. Usado no node do kind em
+[variables.tf](../../infra/local/cluster/variables.tf).
+
 ## Kubernetes
 
 ### Pod _(introdução)_
@@ -114,11 +127,36 @@ Endereço fixo que recebe as requisições e as encaminha para qualquer pod disp
 o cliente (Postman) chama sempre o Service e não precisa saber qual pod responde. Analogia: a secretaria da escola,
 que manda o aluno para qualquer sala com aquela aula.
 
-### kind _(introdução)_
+### kind
 
-"Kubernetes IN Docker": cria um cluster Kubernetes em que cada node é um container Docker. Usado no ambiente local e
-dentro do job da pipeline. Alternativas: minikube e k3d. Escolhido na
-[ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md).
+"Kubernetes IN Docker": cria um cluster Kubernetes em que cada node é um container Docker
+(`workshop-control-plane` no `docker ps`). Usado no ambiente local e dentro do job da pipeline. Alternativas:
+minikube e k3d. Escolhido na [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md); criado pela
+stack [infra/local/cluster](../../infra/local/cluster/main.tf), sem instalar o kind (o provider embute a biblioteca).
+
+### Namespace
+
+Divisão lógica do cluster que agrupa recursos com nomes próprios (`workshop`, `kube-system`). Apagar o namespace
+apaga tudo dentro dele, inclusive PVCs. Por isso tem um único dono: a stack
+[database](../../infra/local/database/main.tf). Analogia: uma ala da oficina com seus boxes.
+
+### Label e selector
+
+Etiquetas chave=valor nos objetos (`app=mysql`). O selector de um Service ou StatefulSet escolhe "todos os pods com
+esta etiqueta"; o `kubectl get pods -l app=mysql` usa o mesmo mecanismo. Analogia: a etiqueta colorida na chave do
+carro que diz em qual box ele está.
+
+### StorageClass e reclaim policy
+
+A StorageClass cria o disco (PV) automaticamente quando surge um PVC; no kind, a `standard` usa uma pasta dentro do
+node. A reclaim policy diz o que acontece com o disco quando o PVC some: `Delete` apaga, `Retain` guarda. Analogia:
+o almoxarifado que entrega o armário sob pedido e o esvazia (ou não) na devolução.
+
+### Helm e chart
+
+O Helm é o gerenciador de pacotes do Kubernetes; um chart é um pacote de YAMLs parametrizáveis por `values`. O
+metrics-server é instalado pelo chart oficial via provider `helm`, sem instalar o Helm. Analogia: um kit de peças já
+montado, em vez de parafusos avulsos. Ver [infra/local/cluster](../../infra/local/cluster/main.tf).
 
 ### kubeconfig
 
@@ -202,6 +240,43 @@ NodePort abre uma porta fixa (30000–32767) no node e encaminha ao Service. No 
 tráfego em um único pod, o que invalida um teste de HPA. Analogia: janela de atendimento que dá para a rua.
 
 ## Terraform
+
+### IaC (Infraestrutura como Código)
+
+Descrever em arquivos o que deve existir e deixar uma ferramenta fazer a realidade bater com eles. O mesmo código
+recria o ambiente do zero, no PC e na pipeline. Analogia: a ficha técnica do modelo, que qualquer mecânico segue e
+chega ao mesmo carro. Ver [infra/local](../../infra/local).
+
+### Provider
+
+Plugin que ensina o Terraform a falar com uma plataforma (`tehcyx/kind`, `hashicorp/helm`, `hashicorp/kubernetes`,
+`hashicorp/random`; na AWS, `hashicorp/aws`). Versões fixadas em `versions.tf` com `~> X.Y.0` (só correções).
+Analogia: o fornecedor homologado pelo qual o almoxarifado pede peças.
+
+### Resource e dependência implícita
+
+`resource "tipo" "nome" { }` descreve uma coisa que deve existir. Quando um resource usa o atributo de outro
+(`random_password.app.result` no Secret), o Terraform deduz a ordem de criação e a inverte no `destroy`; a listagem do
+`plan` é alfabética e não mostra essa ordem. Analogia: itens da ficha técnica que dependem de outros.
+
+### Variable e output
+
+Variable é a entrada da stack (`cluster_name = "workshop"`); output é a saída, mostrada no fim do `apply`
+(`kubeconfig_context`). O output de uma stack alimenta a variable de outra. Analogia: a OS que chega e o laudo que
+sai. Ver [outputs.tf](../../infra/local/cluster/outputs.tf).
+
+### `init` / `plan` / `apply` / `destroy`
+
+`init` baixa os providers e cria/confere o lock file; `plan` mostra o que será criado (`+`), alterado (`~`) ou
+destruído (`-`) sem tocar em nada; `apply` executa após `yes`; `destroy` remove tudo o que está no state. Analogia:
+diagnóstico, orçamento, aprovação e execução da OS; nunca se aprova sem ler o orçamento.
+
+### Valor sensível (`sensitive`)
+
+Valor que o Terraform esconde no `plan` (`(sensitive value)`), como senhas do `random_password`. Continua em texto
+puro no state. Depende de o provider marcar o atributo: o `tehcyx/kind` não marca a chave do cluster, que aparece
+no `destroy` (achado registrado no
+[plano da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md)).
 
 ### Stack, state e lock file
 
