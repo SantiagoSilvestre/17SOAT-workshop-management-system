@@ -184,7 +184,8 @@ class OpenServiceOrderIntakeUseCaseTest {
         givenVehicle(VehicleIntakePort.Status.CREATED);
         givenServiceOrderCreated();
         givenActiveQuotes();
-        when(performDiagnosisUseCase.execute(eq(SERVICE_ORDER_ID), any())).thenReturn(serviceOrder(List.of(execution())));
+        when(performDiagnosisUseCase.execute(eq(SERVICE_ORDER_ID), any()))
+                .thenReturn(serviceOrder(List.of(execution())));
         givenEstimateGenerated();
 
         ServiceOrderIntakeResponse response = useCase.execute(request(TECHNICIAN_ID, List.of(service())));
@@ -315,7 +316,8 @@ class OpenServiceOrderIntakeUseCaseTest {
         givenVehicle(VehicleIntakePort.Status.REUSED);
         givenServiceOrderCreated();
         givenActiveCatalogQuote();
-        when(performDiagnosisUseCase.execute(eq(SERVICE_ORDER_ID), any())).thenReturn(serviceOrder(List.of(execution())));
+        when(performDiagnosisUseCase.execute(eq(SERVICE_ORDER_ID), any()))
+                .thenReturn(serviceOrder(List.of(execution())));
         givenEstimateGenerated();
 
         useCase.execute(request(TECHNICIAN_ID, List.of(new IntakeServiceRequest(CATALOG_SERVICE_ID, null))));
@@ -325,7 +327,8 @@ class OpenServiceOrderIntakeUseCaseTest {
 
     private void givenCustomer(CustomerIntakePort.Status status) {
         UUID id = status == CustomerIntakePort.Status.ARCHIVED ? null : CUSTOMER_ID;
-        when(customerIntakePort.identifyOrRegister(any())).thenReturn(new CustomerIntakePort.CustomerIntake(id, status));
+        when(customerIntakePort.identifyOrRegister(any()))
+                .thenReturn(new CustomerIntakePort.CustomerIntake(id, status));
     }
 
     private void givenVehicle(VehicleIntakePort.Status status) {

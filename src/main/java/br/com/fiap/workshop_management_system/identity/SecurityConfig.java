@@ -65,6 +65,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/service-orders/*/estimates")
                         .hasAnyAuthority("MANAGER", "ADMIN")
 
+                        // Full intake registers Customers and Vehicles and generates an Estimate, all of which
+                        // are MANAGER/ADMIN actions; declared before the general rule that grants TECHNICIAN.
+                        .requestMatchers(HttpMethod.POST, "/api/service-orders/intake")
+                        .hasAnyAuthority("MANAGER", "ADMIN")
+
                         .requestMatchers(HttpMethod.GET, "/api/service-orders/metrics/average-execution-time")
                         .hasAnyAuthority("MANAGER", "ADMIN")
 

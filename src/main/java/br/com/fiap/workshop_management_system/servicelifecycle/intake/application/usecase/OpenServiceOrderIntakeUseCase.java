@@ -157,9 +157,10 @@ public class OpenServiceOrderIntakeUseCase {
     }
 
     private VehicleIntakePort.VehicleIntake identifyVehicle(UUID customerId, IntakeVehicleRequest request) {
-        VehicleIntakePort.VehicleIntake vehicle = vehicleIntakePort.identifyOrRegister(new VehicleIntakePort.VehicleData(
+        VehicleIntakePort.VehicleData data = new VehicleIntakePort.VehicleData(
                 customerId, request.licensePlate(), request.chassis(), request.brand(), request.model(),
-                request.year(), request.color(), request.mileage()));
+                request.year(), request.color(), request.mileage());
+        VehicleIntakePort.VehicleIntake vehicle = vehicleIntakePort.identifyOrRegister(data);
         switch (vehicle.status()) {
             case REUSED, CREATED -> {
             }

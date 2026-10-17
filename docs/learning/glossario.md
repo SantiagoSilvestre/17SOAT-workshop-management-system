@@ -153,6 +153,14 @@ A saída é um terceiro pacote que depende dos dois (aqui, `servicelifecycle/int
 `estimate`). Analogia: em vez de o mecânico e o orçamentista dependerem um do outro, o atendente coordena os dois.
 Ver o [CP4](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
 
+### Códigos HTTP: 4xx x 5xx (400, 401, 403, 404, 409, 500)
+
+4xx = erro de quem chama; 5xx = erro de quem responde. 400: pedido mal formado. 401: sem identificação (falta o
+token). 403: identificado, mas sem permissão (ex.: `TECHNICIAN` na abertura completa). 404: o recurso não existe.
+409: o pedido é válido, mas conflita com o estado atual (cliente arquivado, placa de outro dono). 500: falha interna.
+Analogia: 401 é chegar sem crachá; 403 é ter crachá de mecânico e tentar entrar no caixa. Ver o
+[CP5](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Endpoint de orquestração aditivo
 
 Endpoint novo que chama, em sequência, casos de uso que já existem (cadastro, abertura de OS, diagnóstico, orçamento),

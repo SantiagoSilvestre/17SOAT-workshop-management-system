@@ -38,7 +38,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 2 | APIs de cotação (Catalog Service e Stock Item) | Completed |
 | 3 | Portas, adapters e exceções em `servicelifecycle` | Completed |
 | 4 | Caso de uso orquestrador | Completed |
-| 5 | Endpoint HTTP, autorização e tradução de falhas | Pending |
+| 5 | Endpoint HTTP, autorização e tradução de falhas | Completed |
 | 6 | Testes de integração ponta a ponta e atomicidade | Pending |
 | 7 | OpenAPI, Postman e README | Pending |
 | 8 | Revisão de segurança e gates finais | Pending |
@@ -318,6 +318,29 @@ manuais.
   inexistente e inativo, e serviço sem peças sem cotação de estoque.
 - `ModuleStructureTest`: 2/2 verdes.
 - `./mvnw -q test`: 177 suítes, **890 testes** (876 + 14), 0 falhas, 0 erros, 0 ignorados.
+
+### CP5 — 2026-10-17
+
+- `ServiceOrderIntakeController` (`intake/infrastructure/web`): `POST /api/service-orders/intake` → `201` com
+  `Location: /api/service-orders/{id}`, `@Operation` e `@ApiResponses` (201, 400, 401, 403, 404, 409).
+- `ServiceLifecycleExceptionHandler`: `VALIDATION_ERROR` (400), `CUSTOMER_ARCHIVED`,
+  `VEHICLE_OWNED_BY_ANOTHER_CUSTOMER`, `VEHICLE_CHASSIS_ALREADY_EXISTS`, `STOCK_ITEM_INACTIVE` e
+  `CONCURRENT_REGISTRATION` (409). Os demais códigos da tabela da technical-spec já existiam (`NOT_FOUND` vem do
+  `GlobalExceptionHandler`).
+- **Decisão:** `DataIntegrityViolationException` **não** foi mapeada no handler de `servicelifecycle`. Com o
+  refinamento do CP1 (os repositórios traduzem a violação no `saveAndFlush`), a concorrência já chega como
+  `ServiceOrderIntakeConcurrentRegistrationException`. Mapear a exceção genérica mudaria a resposta (de 500 para 409)
+  de outros endpoints de `servicelifecycle`, o que está fora de escopo.
+- `SecurityConfig`: `POST /api/service-orders/intake` → `MANAGER`/`ADMIN`, declarada antes da regra geral que concede
+  `TECHNICIAN`.
+- Testes novos: `ServiceOrderIntakeControllerTest` (22, use case mockado com `@MockitoBean`): 201 com `Location`
+  e referências; 401 sem token; 403 para `TECHNICIAN` e `CUSTOMER`; 8 bodies inválidos → 400 sem chamar o caso de uso
+  (sem customer, sem vehicle, triagem em branco, documento vazio, placa vazia, quantidade 0, serviço sem ID e 21
+  serviços); 11 exceções → código HTTP e código estável corretos.
+- Regressão: `ServiceOrderControllerCreateTest` e `SecurityAuthorizationTest` verdes, sem alteração.
+- Estilo: corrigidas 6 linhas acima de 120 caracteres (2 delas em arquivos do CP4: `OpenServiceOrderIntakeUseCase` e
+  seu teste); a checagem em todos os arquivos alterados desde o CP1 não acusa mais nenhuma.
+- `./mvnw -q test`: 178 suítes, **912 testes** (890 + 22), 0 falhas, 0 erros, 0 ignorados.
 
 ## Rollback ou recuperação
 
