@@ -158,7 +158,10 @@ E2E_STEPS := \
 	"Complete execution" \
 	"Get average execution time" \
 	"Get service order status" \
-	"Finalize service order"
+	"Finalize service order" \
+	"Open full intake with services" \
+	"Open full intake without services" \
+	"Get full intake estimate"
 
 e2e:
 	@rm -f $(E2E_ENV_FILE)

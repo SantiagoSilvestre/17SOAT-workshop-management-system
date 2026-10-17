@@ -80,7 +80,7 @@ URLs úteis:
 | Veículos | `/api/vehicles` | Cadastro, consulta, atualização, quilometragem e arquivamento. |
 | Catálogo | `/api/catalog-services` | Cadastro, consulta, atualização de preço e arquivamento. |
 | Técnicos | `/api/technicians` | Cadastro, consulta, especialidades e status. |
-| Ordens de Serviço | `/api/service-orders` | Criação, diagnóstico, orçamento, execução, tracking e entrega. |
+| Ordens de Serviço | `/api/service-orders` | Criação, abertura completa (`/intake`), diagnóstico, orçamento, execução, tracking e entrega. |
 | Estoque | `/api/stock-items` | Estoque, saldo e política de baixo estoque. |
 | Reservas | `/api/stock-reservations` | Consulta e consumo de reservas de materiais. |
 | Compras | `/api/purchase-demands`, `/api/purchase-orders` | Demandas, compras e recebimentos. |
@@ -608,6 +608,46 @@ não substitui a geração e decisão da Estimate. Ao final, volte ao passo do f
     repita exatamente o mesmo POST e `Idempotency-Key` para reconciliar sem duplicar a compra. O `make docker-up`
     sobe o WireMock na porta `8089`; a aplicação o acessa internamente por `http://supplier-simulator:8080`. Não
     configure um fornecedor real no MVP.
+
+### Abertura completa da OS (cliente, veículo, serviços e peças)
+
+`POST {{baseUrl}}/api/service-orders/intake` faz numa única chamada o que os passos 1, 2 e 6 a 9 do fluxo principal
+fazem separadamente: identifica ou cadastra o Customer (pelo CPF/CNPJ) e o Vehicle (pela placa), abre a Service Order
+e, se houver serviços, atribui o técnico, registra o diagnóstico e gera o orçamento. Nome e preço de serviços e peças
+vêm sempre do catálogo e do estoque, nunca do body. Tudo ocorre numa única transação: qualquer rejeição desfaz a
+operação inteira, inclusive os cadastros novos.
+
+**Pré-requisitos:** token de `MANAGER` ou `ADMIN` (o login do passo 0 serve; `TECHNICIAN` e `CUSTOMER` recebem
+`403`) e as variáveis `technicianId`, `catalogServiceId` e `stockItemId` preenchidas por `Create technician`,
+`Create catalog service` e `Create stock item`. Não é preciso criar Customer nem Vehicle antes.
+
+**Variáveis próprias** (preenchidas pelos scripts; não sobrescrevem `serviceOrderId` nem `estimateId` do fluxo
+principal): `intakeCustomerTaxId`, `intakeLicensePlate` e `intakeReceivedLicensePlate` (gerados a cada execução),
+`intakeServiceOrderId`, `intakeEstimateId` e `intakeReceivedServiceOrderId`.
+
+Na pasta `Service Lifecycle — Full Intake`, execute na ordem:
+
+1. `Open full intake with services`. O script gera um CPF e uma placa novos; o body traz os dados de cadastro, o
+   `diagnosisTechnicianId` e um serviço com 2 unidades da peça. Espere `201 Created`, `Location:
+   /api/service-orders/{id}`, `customer.created` e `vehicle.created` iguais a `true`, `serviceOrder.statusSnapshot`
+   igual a `AWAITING_APPROVAL` e `estimateId` preenchido. O Mailpit (`http://localhost:8025`) recebe o e-mail do
+   orçamento para `joao@example.test`.
+2. `Open full intake without services`. Envia só o documento do Customer anterior e uma placa nova, sem `services` e
+   sem técnico. Espere `201 Created`, `customer.created: false` (cadastro reaproveitado e não alterado),
+   `vehicle.created: true`, `statusSnapshot: "RECEIVED"` e `estimateId: null`.
+3. `Get full intake estimate` (`GET {{baseUrl}}/api/estimates/{{intakeEstimateId}}`). Espere `200 OK`, uma linha e
+   `total.value` = preço do serviço no catálogo + 2 × preço da peça no estoque. Para levar esta OS adiante pelo
+   passo 10 (`Decide estimate lines`) em diante, copie `intakeServiceOrderId` e `intakeEstimateId` para
+   `serviceOrderId` e `estimateId`, que são as variáveis usadas por aquelas requests.
+
+Falhas esperadas, com o código estável do corpo de erro: body inválido ou serviços sem `diagnosisTechnicianId` →
+`400 VALIDATION_ERROR`; técnico inexistente → `404 NOT_FOUND`; serviço do catálogo ou peça inexistente → `404
+CATALOG_SERVICE_NOT_FOUND` ou `404 STOCK_ITEM_NOT_FOUND`; placa já cadastrada para outro
+Customer → `409 VEHICLE_OWNED_BY_ANOTHER_CUSTOMER`; chassi já usado → `409 VEHICLE_CHASSIS_ALREADY_EXISTS`; Customer,
+Vehicle ou serviço arquivado → `409` (`CUSTOMER_ARCHIVED`, `VEHICLE_ARCHIVED`, `CATALOG_SERVICE_ARCHIVED`); peça
+inativa → `409 STOCK_ITEM_INACTIVE`; duas aberturas simultâneas cadastrando o mesmo CPF ou placa → uma delas recebe
+`409 CONCURRENT_REGISTRATION`. Falta de saldo da peça não rejeita a abertura: fica registrada no
+`stockAvailability` da linha do orçamento. Os três requests também rodam no fim de `make e2e`.
 
 ### Bifurcações e acompanhamento de status
 

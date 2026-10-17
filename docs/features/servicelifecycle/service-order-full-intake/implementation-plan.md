@@ -5,7 +5,7 @@
 | Feature | `service-order-full-intake` |
 | Status | In Progress |
 | Responsável | Santiago Silvestre |
-| Atualizado em | 2026-10-16 |
+| Atualizado em | 2026-10-17 |
 | Especificação funcional | `./functional-spec.md` (`Approved` em 2026-10-16) |
 | Especificação técnica | `./technical-spec.md` (`Approved` em 2026-10-16) |
 
@@ -40,7 +40,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 4 | Caso de uso orquestrador | Completed |
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Completed |
 | 6 | Testes de integração ponta a ponta e atomicidade | Completed |
-| 7 | OpenAPI, Postman e README | Pending |
+| 7 | OpenAPI, Postman e README | Completed |
 | 8 | Revisão de segurança e gates finais | Pending |
 
 ## Checkpoint 0 — Preparar a execução
@@ -372,6 +372,36 @@ Rastreabilidade dos critérios de aceite da functional-spec:
 | Endpoints existentes inalterados | suíte completa verde sem alterar testes existentes |
 | Notificação do Estimate só após o commit | `FlowTest.opensWithNew...` (chega) e `rollsBack...` (nunca chega) |
 | OpenAPI, Postman e README | CP7 |
+
+### CP7 — 2026-10-17
+
+- OpenAPI: em vez de só conferir o `/v3/api-docs` manualmente, o contrato ficou travado em
+  `OpenApiContractTest.documentServiceOrderFullIntakeContract`: caminho `POST /api/service-orders/intake` com
+  respostas 201, 400, 401, 403, 404 e 409; `customer`, `vehicle` e `initialAssessment` obrigatórios; nenhuma
+  propriedade `price` em `IntakeServiceRequest` nem em `IntakePartRequest`; `estimateId` na resposta.
+  `./mvnw -q test -Dtest=OpenApiContractTest`: 20 testes, 0 falhas.
+- Achado na conferência manual: sem `@Tag`, o Swagger UI agrupava o endpoint em `service-order-intake-controller`,
+  longe de "Service Orders". O controller recebeu `@Tag(name = "Service Orders")`, e o teste de contrato passou a
+  conferir a tag. `OpenApiContractTest` (20) e `ServiceOrderIntakeControllerTest` (22) verdes.
+- Postman: pasta nova `Service Lifecycle — Full Intake` com `Open full intake with services`,
+  `Open full intake without services` e `Get full intake estimate`. CPF e placas são gerados a cada execução; o
+  segundo exemplo reaproveita o Customer do primeiro (`customer.created: false`).
+- **Refinamento não material:** os IDs são capturados em variáveis próprias (`intakeServiceOrderId`,
+  `intakeEstimateId` e `intakeReceivedServiceOrderId`) em vez de `serviceOrderId`/`estimateId`, para não
+  sobrescrever as variáveis do fluxo principal quando as pastas forem executadas fora de ordem.
+- `Makefile`: os três requests entram no fim de `E2E_STEPS` (`make e2e`).
+- README: seção "Abertura completa da OS" (pré-requisitos, variáveis, ordem, resultados e falhas esperadas) e
+  menção a `/intake` na tabela de recursos.
+- Execução manual pelo responsável (2026-10-17), Postman contra `docker compose` com MySQL 8.4: os pré-requisitos
+  (login, catalog service, technician, stock item) e os três requests da pasta `Service Lifecycle — Full Intake`
+  passaram em todos os `pm.test`. `Open full intake with services` → `201`; `Open full intake without services` →
+  `201`; `Get full intake estimate` → `200`, `status: "SENT"`, uma linha com `servicePrice` 150,00, 2 × `priceSnapshot`
+  45,90 e `total.value` 241,80 BRL (150,00 + 2 × 45,90); `stockAvailability` `AVAILABLE` (20 em saldo, falta 0).
+- Achado operacional (fora do escopo, sem mudança versionada): a imagem antiga (10/10) não tinha o endpoint, e o
+  primeiro `docker compose up -d --build app` falhou com `exec ./wait-for-mysql.sh: no such file or directory`,
+  porque o `core.autocrlf=true` entregou o script com CRLF na cópia de trabalho. A cópia local foi convertida para
+  LF (o índice do git já tinha LF; o diff de conteúdo é vazio). A correção definitiva (`*.sh text eol=lf` no
+  `.gitattributes`) fica para o CP1 da infra, que também remove o script (D2).
 
 ## Rollback ou recuperação
 

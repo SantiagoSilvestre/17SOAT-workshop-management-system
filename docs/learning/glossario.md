@@ -37,6 +37,20 @@ Etiqueta que identifica uma versão de uma imagem (`app:3d0cdb3`). Sem tag, o Do
 reaproveitado que cada push sobrescreve. A tag pelo SHA do commit é única e rastreável: é o número de série da peça.
 Decidida na [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md).
 
+### CRLF x LF e shebang
+
+Fim de linha: Linux usa `\n` (LF), Windows usa `\r\n` (CRLF); com `core.autocrlf=true` o git entrega CRLF na pasta.
+O shebang (`#!/bin/bash`, 1ª linha do script) diz ao Linux quem executa o arquivo; com CRLF ele vira `bash\r`, que não
+existe, e o container falha com "no such file or directory". Correção: `*.sh text eol=lf` no `.gitattributes`.
+Analogia: um caractere invisível no nome da ferramenta do manual. Ver o achado do
+[CP7](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
+### `docker compose up --build`
+
+Sem `--build`, o Compose reaproveita a imagem que já existe, mesmo com o código alterado; com `--build`, ele
+recompila a imagem antes de subir. Sintoma de imagem velha: endpoint novo ausente no Swagger. Ver
+[docker-compose.yml](../../docker-compose.yml).
+
 ## Kubernetes
 
 ### Pod _(introdução)_
@@ -219,6 +233,22 @@ registro. Lock pessimista (`SELECT ... FOR UPDATE`) tranca a linha lida até o f
 do banco é a última barreira. Analogia: dois atendentes cadastrando o mesmo cliente; o sistema aceita um e o outro
 recebe "já existe, tente de novo". Ver
 [technical-spec da abertura completa](../features/servicelifecycle/service-order-full-intake/technical-spec.md).
+
+### OpenAPI e teste de contrato
+
+OpenAPI é a descrição da API em JSON (`/v3/api-docs`), gerada pelo Springdoc a partir das anotações do controller; o
+Swagger UI a desenha. O teste de contrato lê esse JSON e falha se um endpoint, um código de resposta ou um campo sumir
+ou aparecer sem querer, como um `price` no body da abertura completa. Analogia: o catálogo de serviços impresso no
+balcão, conferido contra o sistema antes de cada mudança. Ver `OpenApiContractTest` e o
+[CP7](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
+### Postman, collection e Newman
+
+Postman é um cliente HTTP; a collection é o arquivo versionado com as requests, variáveis (`{{baseUrl}}`,
+`{{authToken}}`) e scripts (`pre-request` prepara dados, `test` confere a resposta e guarda IDs). Newman executa a
+mesma collection na linha de comando (`make e2e`), o que a transforma em smoke test. Analogia: o roteiro de
+test-drive escrito, que qualquer mecânico repete igual. Ver
+[a collection](../api/postman/workshop-management-system.postman_collection.json).
 
 ## CI/CD
 
