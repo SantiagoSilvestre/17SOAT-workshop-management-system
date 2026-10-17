@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Feature | `service-order-full-intake` |
-| Status | Draft |
+| Status | In Progress |
 | Responsável | Santiago Silvestre |
 | Atualizado em | 2026-10-16 |
 | Especificação funcional | `./functional-spec.md` (`Approved` em 2026-10-16) |
@@ -33,8 +33,8 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 
 | Ordem | Checkpoint | Status |
 |---:|---|---|
-| 0 | Preparar a execução | Pending |
-| 1 | APIs públicas de registration (Customer e Vehicle intake) | Pending |
+| 0 | Preparar a execução | Completed |
+| 1 | APIs públicas de registration (Customer e Vehicle intake) | Completed |
 | 2 | APIs de cotação (Catalog Service e Stock Item) | Pending |
 | 3 | Portas, adapters e exceções em `servicelifecycle` | Pending |
 | 4 | Caso de uso orquestrador | Pending |
@@ -231,6 +231,36 @@ Um teste por critério de aceite da functional-spec, incluindo:
 
 Registrar aqui, por checkpoint, os comandos executados, os resultados (número de testes, cobertura) e as verificações
 manuais.
+
+### CP0 — 2026-10-16
+
+- Branch `feat/terraform-san` em `66b8f10`; `git status --short` só com os arquivos locais não versionados
+  (`contexto-proxima-sessao.md`, `teste.md`).
+- `./mvnw -q test`: exit 0 em ~122 s. Surefire: 168 suítes, **828 testes, 0 falhas, 0 erros, 0 ignorados**.
+- Banco de teste: H2 em memória (`MODE=MySQL`); não depende do Docker.
+
+### CP1 — 2026-10-16
+
+- Código: `customer/application/api` (nova named interface `customer-intake-api`),
+  `IdentifyOrRegisterCustomerUseCase`, `VehicleIntake*` no pacote `vehicle/application/api` existente,
+  `IdentifyOrRegisterVehicleUseCase` e `VehicleRepository.findByLicensePlateForUpdate` (JPA com `PESSIMISTIC_WRITE`).
+- Testes novos: `IdentifyOrRegisterCustomerUseCaseTest` (7), `IdentifyOrRegisterVehicleUseCaseTest` (10) e
+  `RegistrationIntakeApiIntegrationTest` (4, contra H2: exige transação, cadastra e reaproveita, placa de outro dono e
+  **rollback do consumidor descarta Customer e Vehicle criados na mesma transação**). A busca por placa com lock é
+  exercitada nesse teste de integração.
+- `ModuleStructureTest`: 2/2 verdes.
+- `./mvnw -q test`: 171 suítes, **849 testes** (828 + 21), 0 falhas, 0 erros, 0 ignorados.
+- Uma falha intermediária (colisão da sequência de CPF de teste com `ServiceOrderControllerCreateTest`, ambos em
+  `940_000_000`) foi corrigida movendo o novo teste para a faixa livre `960_000_000`.
+- Refinamentos não materiais em relação à technical-spec, sem efeito no contrato HTTP:
+  - `CustomerRepository.save` e `VehicleRepository.save` usam `saveAndFlush` e já traduzem a violação de unicidade no
+    próprio `save`. Por isso a concorrência chega como `CustomerIntakeConflictException`/`VehicleIntakeConflictException`
+    (públicas, no pacote `api`), e não como `DataIntegrityViolationException` no commit. O resultado HTTP previsto
+    (`409 CONCURRENT_REGISTRATION`) não muda; o mapeamento fica no CP3/CP5.
+  - O chassi duplicado em Vehicle novo é um outcome (`CHASSIS_ALREADY_REGISTERED`), e não uma exceção, como os demais
+    casos de rejeição. O resultado HTTP previsto (`409 VEHICLE_CHASSIS_ALREADY_EXISTS`) não muda.
+  - Customer inexistente ou inativo ao cadastrar o Vehicle (só possível com arquivamento concorrente entre os dois
+    passos) lança `IllegalStateException`, mapeada hoje em `servicelifecycle` como `409 INVALID_STATE_TRANSITION`.
 
 ## Rollback ou recuperação
 

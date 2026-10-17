@@ -165,6 +165,14 @@ Interface é esse "balcão público" do módulo, por exemplo o pacote `applicati
 almoxarifado atende pela janela, e ninguém entra na prateleira dele. Ver a
 [ADR-005](../adr/ADR-005-inter-module-integration-contract.md).
 
+### Teste unitário, teste de integração e mock
+
+Teste unitário testa uma classe isolada, trocando as dependências por **mocks** (dublês do Mockito que respondem o que
+o teste mandar), e roda em milissegundos. Teste de integração sobe o Spring e um banco de verdade (aqui, H2 em
+memória) para provar que as peças funcionam juntas, por exemplo um rollback. Analogia: testar o freio na bancada x
+testar o carro na pista. Ver os testes do
+[CP1](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Condição de corrida e lock pessimista
 
 Condição de corrida: duas requisições simultâneas veem "não existe" ao mesmo tempo e as duas tentam criar o mesmo
