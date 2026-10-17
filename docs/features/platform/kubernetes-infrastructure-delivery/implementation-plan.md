@@ -80,9 +80,15 @@ Commit sugerido: `feat(platform): expose liveness and readiness health probes`
 
 ### CP3 — `.gitignore` (passo 6, previsto 17/10)
 
-- [ ] Ignorar `**/.terraform/`, `*.tfstate`, `*.tfstate.*`, `*.tfvars` (exceto `*.tfvars.example`), `crash.log`,
-      `kubeconfig*` e `k8s/overlays/*/secrets.env`.
-- [ ] **Não** ignorar `.terraform.lock.hcl`.
+**Status: Completed (2026-10-17).**
+
+- [x] Ignorar `**/.terraform/`, `*.tfstate`, `*.tfstate.*`, `*.tfvars` (exceto `*.tfvars.example`), `crash.log`,
+      `kubeconfig*` e `k8s/overlays/*/secrets.env`. Extras: `*.tfplan` (plano salvo contém os mesmos valores
+      sensíveis do state) e `crash.*.log`.
+- [x] **Não** ignorar `.terraform.lock.hcl`.
+- **Nota para o CP4:** o provider `tehcyx/kind` grava, por padrão, o kubeconfig como `<nome-do-cluster>-config` na
+  pasta da stack, nome que **não** casa com `kubeconfig*` (verificado com o arquivo fictício `local-kind-config`).
+  No CP4, definir `kubeconfig_path` explicitamente com um nome que comece por `kubeconfig`.
 
 Verificação: criar arquivos fictícios (`infra/local/cluster/terraform.tfstate`, `k8s/overlays/local/secrets.env`) e
 confirmar com `git status --ignored` / `git check-ignore -v` que ficam ignorados; depois apagá-los.
@@ -214,6 +220,7 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP2 | `curl` sem token: liveness `200 {"status":"UP"}`, readiness `200 {"status":"UP"}`, `/actuator/env` `401 UNAUTHORIZED` | 2026-10-17 |
 | CP2 | `docker compose stop mysql` → readiness `503 {"status":"DOWN"}`, liveness `200 {"status":"UP"}`, app `Up 8 minutes (unhealthy)` (não reiniciou) | 2026-10-17 |
 | CP2 | `docker compose start mysql` → readiness volta a `200 {"status":"UP"}` | 2026-10-17 |
+| CP3 | Arquivos fictícios + `git check-ignore -v`/`git status`: ignorados `terraform.tfstate`, `.tfstate.backup`, `.terraform/`, `kubeconfig`, `terraform.tfvars`, `aws.tfplan`, `crash.log`, `k8s/overlays/{local,aws}/secrets.env`; versionáveis `.terraform.lock.hcl`, `terraform.tfvars.example`, `secrets.env.example`. Fictícios apagados | 2026-10-17 |
 
 ## Rollback ou recuperação
 

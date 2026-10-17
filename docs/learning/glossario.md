@@ -120,6 +120,12 @@ que manda o aluno para qualquer sala com aquela aula.
 dentro do job da pipeline. Alternativas: minikube e k3d. Escolhido na
 [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md).
 
+### kubeconfig
+
+Arquivo com o endereço do cluster e a **credencial** de acesso a ele; é o que o `kubectl` lê para saber com quem
+falar. Quem tem o arquivo administra o cluster, por isso `kubeconfig*` está no [.gitignore](../../.gitignore).
+Analogia: a chave da oficina com o endereço gravado no chaveiro.
+
 ### minikube
 
 Outra ferramenta de Kubernetes local, focada na experiência de desenvolvimento: traz addons prontos
@@ -203,6 +209,20 @@ Stack é uma pasta com `init/plan/apply` próprios (aqui, `cluster` e `database`
 do que o Terraform criou e pode conter segredos: nunca é versionado. O `.terraform.lock.hcl` fixa as versões dos
 providers e **é** versionado. Analogia: inventário do almoxarifado × lista de fornecedores homologados. Ver
 [technical-spec da infra](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md).
+
+### `.terraform/`, `.tfvars` e plano salvo
+
+`.terraform/` é a pasta onde o `terraform init` baixa os providers (binários grandes, recriados a partir do lock file).
+`*.tfvars` guarda os valores das variáveis de cada desenvolvedor (região, IP, senhas); versiona-se só um
+`*.tfvars.example` com valores fictícios. Um plano salvo (`terraform plan -out=*.tfplan`) carrega os mesmos valores
+sensíveis do state. Os três ficam fora do git pelo [.gitignore](../../.gitignore).
+
+### `.gitignore` e negação (`!`)
+
+Lista de padrões de arquivos que o git não oferece para commit. `!padrão` reabre uma exceção (`!*.tfvars.example`).
+Só protege arquivos **ainda não versionados**: se um segredo já foi commitado, ignorar depois não o apaga do
+histórico (é preciso trocar o segredo). Por isso o CP3 da infra vem **antes** de qualquer Terraform. Conferência:
+`git check-ignore -v <arquivo>` mostra qual linha casou; `git status` é a prova final.
 
 ## Aplicação
 
