@@ -146,6 +146,13 @@ Analogia: a oficina pede "uma peça com estas medidas" (porta); o comprador sabe
 (adapter). Trocar de fornecedor não muda a oficina. Ver `serviceorder/infrastructure/registration` e o
 [CP3](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
 
+### Dependência cíclica entre pacotes
+
+Quando o pacote A usa o B e o B usa o A, nenhum dos dois pode mudar ou ser testado sem o outro: viram um bloco só.
+A saída é um terceiro pacote que depende dos dois (aqui, `servicelifecycle/intake` usa `serviceorder` e
+`estimate`). Analogia: em vez de o mecânico e o orçamentista dependerem um do outro, o atendente coordena os dois.
+Ver o [CP4](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Endpoint de orquestração aditivo
 
 Endpoint novo que chama, em sequência, casos de uso que já existem (cadastro, abertura de OS, diagnóstico, orçamento),

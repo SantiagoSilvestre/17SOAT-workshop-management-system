@@ -37,7 +37,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 1 | APIs públicas de registration (Customer e Vehicle intake) | Completed |
 | 2 | APIs de cotação (Catalog Service e Stock Item) | Completed |
 | 3 | Portas, adapters e exceções em `servicelifecycle` | Completed |
-| 4 | Caso de uso orquestrador | Pending |
+| 4 | Caso de uso orquestrador | Completed |
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Pending |
 | 6 | Testes de integração ponta a ponta e atomicidade | Pending |
 | 7 | OpenAPI, Postman e README | Pending |
@@ -295,6 +295,29 @@ manuais.
   próprio teste (re-stub de mock com `when(...)` após `thenThrow`) foi corrigida com `doThrow(...).when(...)`.
 - `ModuleStructureTest`: 2/2 verdes.
 - `./mvnw -q test`: 176 suítes, **876 testes** (856 + 20), 0 falhas, 0 erros, 0 ignorados.
+
+### CP4 — 2026-10-16
+
+- **Refinamento de localização (não material):** o orquestrador e seus DTOs ficam no novo subpacote
+  `servicelifecycle/intake` (`application/usecase`, `application/dto`), e não em `serviceorder/application`. Motivo:
+  o orquestrador chama `GenerateEstimateUseCase`, e `estimate` já depende de `serviceorder`; colocá-lo em
+  `serviceorder` criaria um ciclo `serviceorder ↔ estimate` dentro do módulo. Pela mesma razão, o endpoint do CP5
+  fica num controller próprio em `intake/infrastructure/web`, com o mesmo caminho `POST /api/service-orders/intake`.
+  Continua no mesmo módulo Modulith; o contrato HTTP não muda.
+- Código: `OpenServiceOrderIntakeUseCase` (`@Transactional`) e os DTOs `OpenServiceOrderIntakeRequest`,
+  `IntakeCustomerRequest`, `IntakeContactInfoRequest`, `IntakeAddressRequest`, `IntakeVehicleRequest`,
+  `IntakeServiceRequest`, `IntakePartRequest` e `ServiceOrderIntakeResponse`.
+- Ordem: técnico obrigatório com serviços → Customer → Vehicle → `CreateServiceOrderUseCase` → (com serviços) cotação
+  de Catalog Service (IDs ordenados) e Stock Item → `AssignDiagnosisAssigneeUseCase` → `PerformDiagnosisUseCase` →
+  `GenerateEstimateUseCase` → releitura por `GetServiceOrderUseCase`. As cotações acontecem antes da atribuição, para
+  que as rejeições de catálogo e estoque ocorram antes de qualquer mudança de diagnóstico.
+- Técnico informado sem serviços é ignorado (não há atribuição).
+- Testes novos: `OpenServiceOrderIntakeUseCaseTest` (14): snapshot vindo do Vehicle, sem serviços, técnico ignorado,
+  serviços sem técnico, ordem das chamadas (`InOrder`), nome e preço vindos das cotações, contato ausente,
+  Customer arquivado, cada status de Vehicle rejeitado, Catalog Service arquivado e inexistente, Stock Item
+  inexistente e inativo, e serviço sem peças sem cotação de estoque.
+- `ModuleStructureTest`: 2/2 verdes.
+- `./mvnw -q test`: 177 suítes, **890 testes** (876 + 14), 0 falhas, 0 erros, 0 ignorados.
 
 ## Rollback ou recuperação
 
