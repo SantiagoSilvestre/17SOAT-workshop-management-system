@@ -137,6 +137,15 @@ providers e **é** versionado. Analogia: inventário do almoxarifado × lista de
 Módulo do Spring Boot que expõe endpoints operacionais prontos, como `/actuator/health/liveness` e `/readiness`, e já
 sabe checar o banco. Analogia: o painel de luzes do carro.
 
+### Clean Architecture / Hexagonal: porta e adapter
+
+O código fica em camadas: `domain` (regras puras), `application` (casos de uso) e `infrastructure` (HTTP, banco,
+outros módulos). O caso de uso não chama o mundo de fora direto: ele declara uma **porta** (interface dele, ex.
+`CustomerIntakePort`), e um **adapter** na infraestrutura a implementa, traduzindo tipos e erros de outro módulo.
+Analogia: a oficina pede "uma peça com estas medidas" (porta); o comprador sabe qual fornecedor e qual catálogo usar
+(adapter). Trocar de fornecedor não muda a oficina. Ver `serviceorder/infrastructure/registration` e o
+[CP3](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Endpoint de orquestração aditivo
 
 Endpoint novo que chama, em sequência, casos de uso que já existem (cadastro, abertura de OS, diagnóstico, orçamento),

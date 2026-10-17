@@ -36,7 +36,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 0 | Preparar a execução | Completed |
 | 1 | APIs públicas de registration (Customer e Vehicle intake) | Completed |
 | 2 | APIs de cotação (Catalog Service e Stock Item) | Completed |
-| 3 | Portas, adapters e exceções em `servicelifecycle` | Pending |
+| 3 | Portas, adapters e exceções em `servicelifecycle` | Completed |
 | 4 | Caso de uso orquestrador | Pending |
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Pending |
 | 6 | Testes de integração ponta a ponta e atomicidade | Pending |
@@ -273,6 +273,28 @@ manuais.
   `QuoteApisTransactionIntegrationTest` (1, exige transação do consumidor).
 - `ModuleStructureTest`: 2/2 verdes.
 - `./mvnw -q test`: 174 suítes, **856 testes** (849 + 7), 0 falhas, 0 erros, 0 ignorados.
+
+### CP3 — 2026-10-16
+
+- Portas (`application/port`): `CustomerIntakePort`, `VehicleIntakePort`, `CatalogServiceQuotePort` e
+  `StockItemQuotePort`, com records e enums aninhados próprios de `servicelifecycle`.
+- Adapters: `RegistrationCustomerIntakeAdapter`, `RegistrationVehicleIntakeAdapter`,
+  `RegistrationCatalogServiceQuoteAdapter` (em `infrastructure/registration`) e `StockItemQuoteAdapter` (novo
+  `infrastructure/stock`). Traduzem `IllegalArgumentException` → `ServiceOrderIntakeInvalidDataException` (mensagem
+  do domínio preservada; conferido que ela não repete documento, placa nem chassi) e os conflitos de concorrência →
+  `ServiceOrderIntakeConcurrentRegistrationException`. Os outcomes de negócio (arquivado, outro dono etc.) voltam
+  como status, e quem decide a rejeição é o caso de uso (CP4).
+- Exceções novas: `ServiceOrderIntakeInvalidDataException`, `ServiceOrderIntakeCustomerArchivedException`,
+  `ServiceOrderIntakeVehicleOwnershipConflictException`, `ServiceOrderIntakeVehicleChassisConflictException`,
+  `ServiceOrderIntakeConcurrentRegistrationException` (decorre do refinamento do CP1) e
+  `ServiceOrderStockItemInactiveException`.
+- Tipo de Stock Item desconhecido: `StockItemQuoteContractException` (não mapeada → 500), e não a
+  `IllegalArgumentException` crua do `valueOf`, que o `GlobalExceptionHandler` transformaria em
+  `400 INVALID_STOCK_ITEM`.
+- Testes novos: `RegistrationIntakeAdaptersTest` (15) e `StockItemQuoteAdapterTest` (5). Uma falha intermediária no
+  próprio teste (re-stub de mock com `when(...)` após `thenThrow`) foi corrigida com `doThrow(...).when(...)`.
+- `ModuleStructureTest`: 2/2 verdes.
+- `./mvnw -q test`: 176 suítes, **876 testes** (856 + 20), 0 falhas, 0 erros, 0 ignorados.
 
 ## Rollback ou recuperação
 
