@@ -137,6 +137,42 @@ providers e **é** versionado. Analogia: inventário do almoxarifado × lista de
 Módulo do Spring Boot que expõe endpoints operacionais prontos, como `/actuator/health/liveness` e `/readiness`, e já
 sabe checar o banco. Analogia: o painel de luzes do carro.
 
+### Endpoint de orquestração aditivo
+
+Endpoint novo que chama, em sequência, casos de uso que já existem (cadastro, abertura de OS, diagnóstico, orçamento),
+sem mudar os endpoints antigos. "Aditivo" = só acrescenta, e por isso não quebra quem usa o contrato atual. Analogia:
+um atendente que leva a ficha completa aos vários guichês da oficina. Ver
+[abertura completa de OS](../features/servicelifecycle/service-order-full-intake/functional-spec.md).
+
+### Transação e atomicidade
+
+Transação é um bloco de gravações no banco tratado como unidade: ou tudo é confirmado (_commit_), ou tudo é desfeito
+(_rollback_). Atomicidade é essa garantia de "tudo ou nada". Analogia: se a OS é recusada no último guichê, a ficha do
+cliente cadastrada no primeiro também é rasgada. Ver a regra "Atomicidade" da
+[abertura completa de OS](../features/servicelifecycle/service-order-full-intake/functional-spec.md).
+
+### Propagação de transação (`REQUIRED` x `MANDATORY`)
+
+Regra do Spring sobre o que um método `@Transactional` faz quando é chamado dentro de outra transação. `REQUIRED` (o
+padrão) entra na transação que já existe ou abre uma nova. `MANDATORY` exige que já exista uma, e falha se não
+existir. Analogia: `MANDATORY` é o guichê que só atende quem chega com a ficha aberta no balcão. Ver
+[technical-spec da abertura completa](../features/servicelifecycle/service-order-full-intake/technical-spec.md).
+
+### Spring Modulith e Named Interface
+
+O Modulith verifica, por teste (`ModuleStructureTest`), que um módulo só usa de outro o que foi publicado. A Named
+Interface é esse "balcão público" do módulo, por exemplo o pacote `application/api` de `registration`. Analogia: o
+almoxarifado atende pela janela, e ninguém entra na prateleira dele. Ver a
+[ADR-005](../adr/ADR-005-inter-module-integration-contract.md).
+
+### Condição de corrida e lock pessimista
+
+Condição de corrida: duas requisições simultâneas veem "não existe" ao mesmo tempo e as duas tentam criar o mesmo
+registro. Lock pessimista (`SELECT ... FOR UPDATE`) tranca a linha lida até o fim da transação. A constraint `UNIQUE`
+do banco é a última barreira. Analogia: dois atendentes cadastrando o mesmo cliente; o sistema aceita um e o outro
+recebe "já existe, tente de novo". Ver
+[technical-spec da abertura completa](../features/servicelifecycle/service-order-full-intake/technical-spec.md).
+
 ## CI/CD
 
 ### GHCR
