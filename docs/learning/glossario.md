@@ -205,6 +205,13 @@ memória) para provar que as peças funcionam juntas, por exemplo um rollback. A
 testar o carro na pista. Ver os testes do
 [CP1](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
 
+### Teste de aceitação (ponta a ponta) e rastreabilidade
+
+Teste que exercita o fluxo inteiro como o usuário faria (HTTP → caso de uso → banco), um por critério de aceite da
+spec. Rastreabilidade é a tabela "critério → teste que o prova": mostra que nada da spec ficou sem verificação.
+Analogia: o test-drive depois do conserto, com a ficha da OS na mão, item por item. Ver a tabela do
+[CP6](../features/servicelifecycle/service-order-full-intake/implementation-plan.md).
+
 ### Condição de corrida e lock pessimista
 
 Condição de corrida: duas requisições simultâneas veem "não existe" ao mesmo tempo e as duas tentam criar o mesmo

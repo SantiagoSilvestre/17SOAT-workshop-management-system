@@ -39,7 +39,7 @@ tudo numa única transação. Nenhum endpoint existente muda de contrato ou de c
 | 3 | Portas, adapters e exceções em `servicelifecycle` | Completed |
 | 4 | Caso de uso orquestrador | Completed |
 | 5 | Endpoint HTTP, autorização e tradução de falhas | Completed |
-| 6 | Testes de integração ponta a ponta e atomicidade | Pending |
+| 6 | Testes de integração ponta a ponta e atomicidade | Completed |
 | 7 | OpenAPI, Postman e README | Pending |
 | 8 | Revisão de segurança e gates finais | Pending |
 
@@ -341,6 +341,37 @@ manuais.
 - Estilo: corrigidas 6 linhas acima de 120 caracteres (2 delas em arquivos do CP4: `OpenServiceOrderIntakeUseCase` e
   seu teste); a checagem em todos os arquivos alterados desde o CP1 não acusa mais nenhuma.
 - `./mvnw -q test`: 178 suítes, **912 testes** (890 + 22), 0 falhas, 0 erros, 0 ignorados.
+
+### CP6 — 2026-10-17
+
+- `ServiceOrderIntakeFlowTest` (9, `@SpringBootTest` contra H2, fixtures próprias via repositórios, sem seeds;
+  `CustomerEstimateNotificationPort` substituído por `@MockitoBean` para observar a notificação pós-commit).
+- Uma falha intermediária no próprio teste (`$.total` é um objeto `{value, currency}`) foi corrigida para
+  `$.total.value`; o valor (241,80 = 150,00 + 2 × 45,90) já estava correto.
+- `./mvnw -q test`: 179 suítes, **921 testes** (912 + 9), 0 falhas, 0 erros, 0 ignorados.
+
+Rastreabilidade dos critérios de aceite da functional-spec:
+
+| Critério | Teste |
+|---|---|
+| Customer e Vehicle novos + serviço com peças → `AWAITING_APPROVAL`, execução, Estimate | `FlowTest.opensWithNewRegistrationsDiagnosisAndEstimateUsingRegisteredPrices` |
+| Reaproveitamento sem alterar cadastros | `FlowTest.reusesExistingRegistrationsWithoutChangingThem` |
+| Customer existente + placa nova | `FlowTest.registersNewVehicleForAnExistingCustomer` |
+| Sem serviços → `RECEIVED`, sem Diagnosis e sem Estimate | `FlowTest.opensWithoutServicesInReceivedStatus` |
+| `VehicleSnapshot` igual ao cadastro | `FlowTest.opensWithNew...` e `reusesExisting...`; `UseCaseTest.opensServiceOrderWithoutServices...` |
+| Nome e preço vindos dos cadastros, mesmo com `price` no JSON | `FlowTest.opensWithNew...` (envia 0,01; espera 150,00 e 45,90; total 241,80) |
+| Placa de outro Customer → 409 | `FlowTest.rejectsPlateOwnedByAnotherCustomer` |
+| Customer, Vehicle ou Catalog Service arquivado → 409 | `FlowTest.rollsBackNewRegistrationsWhenALaterStepFails` (catálogo); `UseCaseTest` + `ControllerTest` (Customer e Vehicle) |
+| Technician, Catalog Service ou Stock Item inexistente → 404 | `FlowTest.rejectsUnknownTechnicianAndStockItemAsNotFound`; `UseCaseTest` + `ControllerTest` (catálogo) |
+| Serviços sem técnico → 400 | `UseCaseTest.rejectsServicesWithoutTechnician...` + `ControllerTest` (mapeamento) |
+| Dados inválidos → 400 | `ControllerTest.rejectsInvalidBodies...` (8 casos) + `RegistrationIntakeAdaptersTest` (validação de domínio) |
+| **Atomicidade:** falha depois do cadastro não deixa nada gravado | `FlowTest.rollsBackNewRegistrationsWhenALaterStepFails` (contagens de `customers`, `vehicles`, `service_orders` e `estimates` iguais; placa ausente; sem notificação) |
+| Falta de estoque não rejeita e fica registrada | `FlowTest.recordsStockShortageWithoutRejectingTheIntake` |
+| Stock Item inativo → 409 | `FlowTest.rejectsInactiveStockItemAsConflict` |
+| `TECHNICIAN`/sem token não acessam | `ControllerTest.requiresAuthentication` e `rejectsTechnicianAndCustomerRoles` |
+| Endpoints existentes inalterados | suíte completa verde sem alterar testes existentes |
+| Notificação do Estimate só após o commit | `FlowTest.opensWithNew...` (chega) e `rollsBack...` (nunca chega) |
+| OpenAPI, Postman e README | CP7 |
 
 ## Rollback ou recuperação
 
