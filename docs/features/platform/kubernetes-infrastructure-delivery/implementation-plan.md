@@ -125,8 +125,7 @@ Commit sugerido: `feat(platform): provision local kind cluster, metrics-server a
 
 ### CP5 — Manifestos e HPA (passo 8, previsto 20/10)
 
-**Status: In Progress (2026-10-17): deploy verificado (7 de 10 critérios); teste de carga/HPA (escala sobe, desce e
-mesmo endereço) na próxima sessão.**
+**Status: Completed (2026-10-18): 10 de 10 critérios; deploy em 2026-10-17, teste de carga/HPA em 2026-10-18.**
 
 - [x] `k8s/base`: Deployment, Service, ConfigMap, HPA, Mailpit e WireMock, conforme a technical-spec.
 - [x] `k8s/overlays/local`: NodePort 30080/30025, HPA 1–3, perfil `dev` com seeds, imagem
@@ -156,6 +155,21 @@ Desvios registrados:
   migration deixaria DDL do MySQL (não transacional) pela metade. 5 min cabem no `progressDeadlineSeconds: 300`. É
   um valor calibrado com evidência, não estrutural: a lentidão do MySQL local (~5,5 s por migration) está em
   investigação.
+- **MySQL local com durabilidade relaxada (aprovado pelo Santiago, 2026-10-18):** `args` `--skip-log-bin`,
+  `--innodb-flush-log-at-trx-commit=2` e `--innodb-doublewrite=OFF` só na stack `infra/local/database` (banco
+  descartável; não se aplica ao RDS). Flyway 2m18s → **1m55s**, boot 165,6 s → **139,6 s** (−17%). A causa principal
+  não é o commit: o `execution_time` do `flyway_schema_history` mostrou DML em 2–5 ms e DDL lento, e um teste num banco
+  descartável mediu `INSERT`/`UPDATE` 0,00 s, `ADD COLUMN` (instantâneo) 0,27 s, `CREATE TABLE` 1,23 s e
+  `ADD CONSTRAINT CHECK` (reconstrói a tabela) 1,50 s. O custo é criar e sincronizar arquivos `.ibd` no disco do kind
+  sobre WSL2, que nenhuma flag desliga. A startupProbe de 5 min continua (folga suficiente). Sem dívida técnica.
+- **Observação para o time (fora do escopo):** consolidar (*squash*) as 25 migrations num schema só com `CREATE`s
+  eliminaria os `ALTER`s do primeiro boot (estimativa: ~25–30 s de Flyway), mas muda checksums, exige recriar todos os
+  bancos e afeta as branches de todos; o `AGENTS.md` só permite isso antes do baseline operacional e com spec aprovada.
+- **HPA só por CPU (aprovado pelo Santiago, 2026-10-18):** no 1º teste de carga a escala desceu 3 → 2 e travou: 2 pods
+  ociosos a 48% de memória → `ceil(2 × 48 / 85) = 2` (`describe hpa`: `ScalingActive ... from memory resource
+  utilization`), porque a JVM não devolve o heap. A métrica de memória foi removida do `app-hpa.yaml` (base, vale para
+  local e AWS); a memória segue limitada pelo `limit` de 1 Gi e pelo `MaxRAMPercentage`. Nota na technical-spec, sem
+  voltar a Draft: o risco já estava previsto e o comportamento pedido (escalar e voltar ao mínimo) não muda.
 - **Imagem `:local` reconstruída:** o Deployment não muda (mesma tag), então o deploy faz `rollout restart` quando ele
   já existe.
 
@@ -277,6 +291,10 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP5 | Rolling update (probe 36 → 60): `apply -k` → ReplicaSet novo `5d589d5c8c`; 2 pods durante ~30 s; o antigo só terminou depois que o novo ficou `1/1` (`maxSurge: 1`, `maxUnavailable: 0`) | 2026-10-17 |
 | CP5 | Versão ruim: `set env DB_URL=jdbc:mysql://inexistente:3306/x` → pod novo `Error`/`CrashLoopBackOff` (3 restarts em 96 s); antigo `1/1`; readiness `UP`; `get rs` → `5d589d5c8c 1/1/1`, `76bfc6cd55 1/1/0`; `rollout undo` → `76bfc6cd55` a 0; `kubectl diff -k` → sem diferenças | 2026-10-17 |
 | CP5 | Postman: 27 passos do `make e2e` (Newman, um processo por pasta) contra `localhost:8080` → 27/27. Corrigido antes: o pre-request de `Open full intake with services` gravava `intakeCustomerTaxId`/`intakeLicensePlate` só como variável de collection, perdida entre processos do Newman (`Run Open full intake with services first`); agora grava também no environment | 2026-10-17 |
+| CP5 | Ambiente recriado com o MySQL relaxado: `SELECT @@log_bin, @@innodb_flush_log_at_trx_commit, @@innodb_doublewrite` → `0 2 OFF`; Flyway `Successfully applied 25 migrations ... (execution time 01:55.249s)`; `Started ... in 139.643 seconds` (banco vazio) | 2026-10-18 |
+| CP5 | `flyway_schema_history.execution_time`: DML 2 ms/5 ms; `initial schema` 20,2 s, `add customer address` 15,7 s (8 `ALTER`). Banco `bench` descartável (`mysql -vvv`): `INSERT`/`UPDATE` 0,00 s, `ADD COLUMN` 0,27 s, `CREATE TABLE` 1,23 s, `ADD CONSTRAINT CHECK` 1,50 s; `bench` apagado | 2026-10-18 |
+| CP5 | Carga 1 (HPA CPU + memória), k6 `grafana/k6:1.3.0` só em `localhost:8080`: CPU 154% → 2 pods, 183% → 3 pods; pod novo nasce a ~1000m (boot da JVM) sem cascata; 6714 requisições, **0 falhas**, p95 84 ms. Fim da carga: 3 → 2 em ~1 min e **travou em 2** (memória 48%/85%, `ScalingActive ... from memory`) | 2026-10-18 |
+| CP5 | Após remover a memória (`kubectl diff -k` → só o bloco `memory` sai; `apply` → `configured`): 2 → 1 ocioso em ~1 min. Carga 2: CPU 104% → 2, 3 pods no pico (máx. 124%); 6727 requisições, **0 falhas**, p95 77 ms, máx. 836 ms; fim da carga → 3 → 2 → **1** em ~1 min. Critérios "escala sobe", "escala desce" e "mesmo endereço" ✅ | 2026-10-18 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação

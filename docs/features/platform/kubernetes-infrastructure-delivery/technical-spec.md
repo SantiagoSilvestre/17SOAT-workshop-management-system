@@ -48,7 +48,7 @@ k8s/
     app-deployment.yaml       # Deployment da API (probes, requests/limits, securityContext)
     app-service.yaml          # Service ClusterIP "workshop-app" (porta 80 -> 8080)
     app-configmap.yaml        # configuração não sensível comum
-    app-hpa.yaml              # HPA (CPU + memória); min/max sobrescritos por overlay
+    app-hpa.yaml              # HPA (só CPU, ver nota do CP5); min/max sobrescritos por overlay
     mailpit.yaml              # Deployment + Service do SMTP de teste
     supplier-simulator.yaml   # Deployment + Service do WireMock
   overlays/
@@ -188,7 +188,7 @@ autenticação. A nomenclatura exata das propriedades no Spring Boot 4.1 é conf
 | App: requests CPU / memória | `250m` / `768Mi` | `250m` / `768Mi` |
 | App: limits CPU / memória | `1000m` / `1Gi` | `1000m` / `1Gi` |
 | HPA min / max | 1 / 3 | 2 / 4 |
-| HPA alvo CPU / memória | 70% / 85% da request | 70% / 85% da request |
+| HPA alvo CPU / memória | 70% / ~~85%~~ removida (nota do CP5) | 70% / ~~85%~~ removida (nota do CP5) |
 | HPA scale-down | janela de estabilização de 60 s | 120 s |
 | MySQL (local) requests / limits | `250m`, `512Mi` / `1000m`, `1Gi` | RDS (fora do cluster) |
 | Mailpit, WireMock requests / limits | `50m`, `64Mi` / `200m`, `128Mi` e `100m`, `256Mi` / `500m`, `384Mi` | idem |
@@ -198,6 +198,10 @@ da JVM (~400–500 MiB) fica abaixo de 85% de 768 Mi (~650 MiB), então a memór
 conhecido:** a JVM devolve pouca memória ao sistema depois de uma carga, e o HPA usa a maior recomendação entre CPU e
 memória. Se a memória segurar a escala, o passo 8 ajusta o alvo de memória ou a request, registrando a evidência no
 plano. Soma local no pior caso: ~5,5 GiB, por isso o requisito de ≥ 6 GiB para o Docker Desktop/WSL2.
+
+> **Nota (2026-10-18, CP5):** o risco acima se confirmou no teste de carga (2 pods ociosos a 48% de memória →
+> `ceil(2 × 48 / 85) = 2`, sem voltar a 1). A métrica de memória foi **removida** do HPA (só CPU a 70%) nos dois
+> ambientes; a memória continua limitada pelo `limit` de 1 Gi e pelo `MaxRAMPercentage`. Evidências e desvio no plano.
 
 **Service `workshop-app`:** `ClusterIP` na base (porta 80 → 8080). O overlay `local` troca para `NodePort` 30080; o
 overlay `aws`, para `LoadBalancer` com `loadBalancerSourceRanges` (ver "Segurança e operação"). O Service do Mailpit

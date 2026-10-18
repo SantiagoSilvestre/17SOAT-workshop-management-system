@@ -11,7 +11,7 @@ COMPOSE := docker compose
 
 .PHONY: help test coverage verify compile build clean run run-dev \
 	docker-build docker-up docker-up-interactive docker-down docker-reset docker-logs docker-ps db-shell e2e \
-	sca dast infra-local-up infra-local-down k8s-local-deploy k8s-local-delete
+	sca dast infra-local-up infra-local-down k8s-local-deploy k8s-local-delete load-test
 
 help:
 	@echo "Workshop Management System"
@@ -38,6 +38,7 @@ help:
 	@echo "  make infra-local-down  Destroy MySQL and its data, then the kind cluster"
 	@echo "  make k8s-local-deploy  Build and load the :local image, then apply k8s/overlays/local"
 	@echo "  make k8s-local-delete  Remove the app, Mailpit and WireMock (keeps MySQL and its data)"
+	@echo "  make load-test         Run the k6 HPA load test (k6 via container)"
 	@echo ""
 	@echo "Security:"
 	@echo "  make sca           Run OWASP Dependency-Check over every declared dependency"
@@ -238,3 +239,13 @@ k8s-local-deploy:
 k8s-local-delete:
 	kubectl delete -k $(K8S_LOCAL) --ignore-not-found
 	kubectl delete configmap supplier-simulator-mappings -n workshop --ignore-not-found
+
+# Watch the scaling in another terminal: kubectl get hpa -n workshop -w
+# --add-host makes host.docker.internal resolvable on Linux too (Docker Desktop already provides it).
+K6_IMAGE := grafana/k6:1.3.0
+LOAD_TEST_BASE_URL ?= http://host.docker.internal:8080
+
+load-test:
+	docker run --rm --add-host=host.docker.internal:host-gateway \
+		-v "$(CURDIR)/load-test:/scripts:ro" -e BASE_URL=$(LOAD_TEST_BASE_URL) \
+		$(K6_IMAGE) run /scripts/hpa-load.js

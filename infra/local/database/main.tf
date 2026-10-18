@@ -109,6 +109,13 @@ resource "kubernetes_stateful_set_v1" "mysql" {
         container {
           name  = "mysql"
           image = var.mysql_image
+          # Experiment (CP5): trade crash durability for faster writes on this disposable local database.
+          # The image entrypoint prepends mysqld to arguments that start with "--". Never applies to RDS.
+          args = [
+            "--skip-log-bin",
+            "--innodb-flush-log-at-trx-commit=2",
+            "--innodb-doublewrite=OFF",
+          ]
 
           port {
             name           = "mysql"

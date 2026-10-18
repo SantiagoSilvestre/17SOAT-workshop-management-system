@@ -270,6 +270,31 @@ percentual da request (ex.: 70% de CPU). Analogia: o gerente chama mais mecânic
 Componente que coleta CPU e memória dos pods a partir do kubelet de cada node; sem ele o HPA fica cego. No kind roda
 com `--kubelet-insecure-tls`, porque o certificado do kubelet é autoassinado. Analogia: o medidor de fila do gerente.
 
+### Fórmula do HPA e tolerância
+
+A cada 15 s: `réplicas desejadas = ceil(réplicas atuais × uso ÷ alvo)`, com o uso em % da request; com várias
+métricas vale a maior recomendação, e razões entre 0,9 e 1,1 são ignoradas (tolerância). Ex. do CP5: 1 pod a 148% de
+CPU → `ceil(1 × 148 ÷ 70) = 3`, limitado pelo `maxReplicas`. Ver [`app-hpa.yaml`](../../k8s/base/app-hpa.yaml).
+
+### Janela de estabilização
+
+Para descer, o HPA usa a **maior** recomendação dos últimos N segundos (60 s no local), evitando dispensar um pod num
+vale curto de carga; para subir, a janela padrão é 0 (age na hora). Analogia: só dispensar o mecânico extra após um
+minuto de fila vazia. Medido no CP5: 3 → 2 → 1 cerca de 1 min depois do fim da carga.
+
+### Período de inicialização de CPU
+
+O HPA ignora a CPU de pods que ainda não ficaram prontos (e trata com cuidado os primeiros minutos de vida), porque o
+boot da JVM consome muito (≈1000m no CP5) e geraria escala em cascata. Analogia: não medir a produtividade do novato
+enquanto ele veste o macacão. Parente da [startupProbe](#startupprobe).
+
+### HPA por memória com JVM
+
+A JVM não devolve o heap depois de um pico, então a memória média não cai e trava a escala: no CP5, 2 pods ociosos a
+48% davam `ceil(2 × 48 ÷ 85) = 2` para sempre. Por isso o HPA do projeto usa **só CPU**; a memória é limitada pelo
+`limit` + `MaxRAMPercentage`. Ver a nota do CP5 na
+[technical-spec da infra](../features/platform/kubernetes-infrastructure-delivery/technical-spec.md).
+
 ### Kustomize (base e overlay)
 
 Ferramenta embutida no `kubectl` (`apply -k`) que monta os YAMLs a partir de uma `base` comum e de `overlays` com só
@@ -409,6 +434,23 @@ Transação é um bloco de gravações no banco tratado como unidade: ou tudo é
 (_rollback_). Atomicidade é essa garantia de "tudo ou nada". Analogia: se a OS é recusada no último guichê, a ficha do
 cliente cadastrada no primeiro também é rasgada. Ver a regra "Atomicidade" da
 [abertura completa de OS](../features/servicelifecycle/service-order-full-intake/functional-spec.md).
+
+### Durabilidade, `fsync`, redo log, binlog e doublewrite
+
+Durabilidade (o "D" de ACID) é o commit sobreviver a uma queda de energia; o `fsync` força o dado da memória para o
+disco e é lento. O MySQL faz `fsync` do **redo log** (diário interno) a cada commit, mantém o **binlog** (diário para
+replicação) e grava páginas duas vezes (**doublewrite**). No MySQL local desligamos os três
+(`--skip-log-bin`, `--innodb-flush-log-at-trx-commit=2`, `--innodb-doublewrite=OFF`, em
+[`infra/local/database/main.tf`](../../infra/local/database/main.tf)): banco descartável; nunca no RDS. Analogia: o
+mecânico ir ao cofre a cada anotação x uma vez por segundo.
+
+### Custo de DDL e squash de migrations
+
+No MySQL 8 cada tabela é um arquivo `.ibd`; `CREATE TABLE` e `ALTER` que reconstrói a tabela criam arquivo e fazem
+`fsync` obrigatório (~1,2–1,5 s no kind sobre WSL2), enquanto `INSERT`/`UPDATE` levaram 0,00 s. *Squash* (baseline) é
+consolidar o histórico de migrations num schema final só com `CREATE`s; muda checksums do Flyway e exige recriar
+bancos, por isso é decisão do time. Ver o CP5 do
+[plano da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md).
 
 ### Propagação de transação (`REQUIRED` x `MANDATORY`)
 
