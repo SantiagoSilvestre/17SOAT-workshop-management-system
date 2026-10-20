@@ -192,12 +192,34 @@ Commit sugerido: `feat(platform): add kustomize manifests, hpa and k6 load test 
 
 ### CP6 — Pipeline com kind (passo 9, previsto 21/10)
 
-- [ ] Criar o fork pessoal; environment `kind-ci` com `APP_SECURITY_JWT_SECRET` e
-      `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` (valores aleatórios novos).
-- [ ] `.github/workflows/cd.yml` com jobs `build-test` → `image` → `deploy-kind`, gatilho só em `feat/terraform-san`
+**Status: Completed (2026-10-20, adiantado): 5 de 5 critérios.**
+
+- [x] Criar o fork pessoal (`SantiagoSilvestre/17SOAT-workshop-management-system`); environment `kind-ci` com
+      `APP_SECURITY_JWT_SECRET` e `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` (48 bytes aleatórios do
+      `RandomNumberGenerator`; `Keys.hmacShaKeyFor` exige ≥ 32 bytes).
+- [x] `.github/workflows/cd.yml` com jobs `build-test` → `image` → `deploy-kind`, gatilho só em `feat/terraform-san`
       (um único ponto), `REGISTRY`/`IMAGE_NAME` em `env:`, actions fixadas por SHA e smoke test.
-- [ ] Tornar o pacote GHCR público depois do primeiro push (D9).
-- [ ] README: onde fica o nome da branch no workflow e como trocá-lo.
+- [x] Tornar o pacote GHCR público depois do primeiro push (D9): já nasceu público (ver desvios).
+- [x] README: onde fica o nome da branch no workflow e como trocá-lo (seção "Pipeline de entrega").
+
+Desvios registrados:
+
+- **Dono da imagem calculado:** `${GITHUB_REPOSITORY_OWNER,,}` (minúsculas, exigência do GHCR) em vez de um nome fixo;
+  o job `image` exporta a referência completa como `outputs.image` e o `deploy-kind` a consome. No repositório do grupo,
+  o mesmo arquivo publica em `ghcr.io/systemivan/...` sem edição.
+- **Login no GHCR por `docker login --password-stdin`** com o `GITHUB_TOKEN`, sem `docker/login-action`/
+  `build-push-action`: uma action de terceiros a menos para fixar por SHA. Terraform pela `hashicorp/setup-terraform`
+  v4.0.1 (`dfe3c3f8...`), versão `1.16.6` igual à local, `terraform_wrapper: false`.
+- **Pacote GHCR público sem ação manual:** o pull anônimo do manifest `:d902d1b...` respondeu `200` logo após o
+  primeiro run. O pacote publicado pelo `GITHUB_TOKEN` fica ligado ao repositório de origem e herdou a visibilidade
+  pública do fork.
+- **Retry na readiness do smoke test (`46cd5b2`):** o run `39363382338` falhou com
+  `curl: (56) Recv failure: Connection reset by peer` 13 ms depois de `successfully rolled out` (pod `1/1`, 0
+  restarts). O pod fica Ready antes de o kube-proxy programar o endpoint na regra do NodePort; o `curl` passou a usar
+  `--retry 12 --retry-delay 5 --retry-all-errors --max-time 5` (até ~1 min). Um app que nunca fica pronto continua
+  reprovando o job.
+- **Commit de teste revertido:** `8a9f474` (teste que falha de propósito) desfeito por `git revert` (`1cc7409`), sem
+  reescrever o histórico já publicado no fork.
 
 Verificação: execução verde no fork, com link registrado e duração total ≤ 40 min; commit temporário com teste
 quebrado → `image` e `deploy-kind` não rodam (depois reverter); push em outra branch → `cd.yml` não dispara; logs sem
@@ -247,7 +269,7 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Validação de entrada / mass assignment | Nenhum endpoint de negócio muda | N/A | — | N/A |
 | Autenticação e autorização | Health sem token, só `GET` em três caminhos | Baixa | sem detalhes/componentes; `POST` → 401; `/actuator/env` e `/beans` → 401 sem token e 404 com ADMIN (`HealthEndpointTest`; `curl` manual → 401) | Resolvido (CP2) |
 | Exposição de dados | Admin de bootstrap `admin/changeme123` exposto por endpoint público na AWS | **Alta** | `loadBalancerSourceRanges` com o IP do desenvolvedor e `destroy` após cada uso | Pendente (CP8) |
-| Segredos e logs | Secrets por environment; `secrets.env` não versionado; token mascarado | Média | `.gitignore` (CP3), `umask 077`, `::add-mask::`, revisão dos logs | Pendente |
+| Segredos e logs | Secrets por environment; `secrets.env` não versionado; token mascarado | Média | `.gitignore` (CP3), `umask 077`, `::add-mask::`, revisão dos logs; CP6: secrets só no job `deploy-kind` (`environment: kind-ci`), entregues por `env:`, sem `set -x`; busca nos logs do run `39360660986` sem nenhum valor exposto | Resolvido para `kind-ci` (CP6); AWS no CP8 |
 | Persistência e migrations | Nenhuma migration nova; state com senha do banco | Média | state local fora do git; S3 criptografado e privado | Pendente |
 | Respostas de erro | Health não expõe detalhes | Baixa | `show-details`/`show-components=never` em `actuator.properties`, importado também pelos testes; banco fora → só `{"status":"DOWN"}` | Resolvido (CP2) |
 | Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
@@ -255,7 +277,7 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` do app: `runAsNonRoot`/`runAsUser: 1000`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem` (só `/tmp` em `emptyDir` de 256 Mi), `drop: [ALL]`, `seccomp RuntimeDefault`, `automountServiceAccountToken: false`; o app subiu sem `Read-only file system`. Mailpit/WireMock (imagens de terceiros): `allowPrivilegeEscalation: false` + seccomp, sem token | Resolvido (CP5) |
 | Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, considerar `kubectl apply --server-side`, que não grava essa anotação | Aceito (local); revisar no CP8 |
 | `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
-| Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada | Aceito (local); revisar no CP6 |
+| Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada. CP6: a pipeline só faz `apply` sobre state vazio (atributos `(known after apply)`) e nunca `destroy` (o runner é descartado); busca nos logs do run `39360660986` sem `PRIVATE KEY`/`client-key-data`, então nenhum filtro é necessário | Aceito (local); resolvido na pipeline (CP6) |
 | Senhas do MySQL local | Geradas por `random_password` (24 caracteres), entregues por Secret; nunca aparecem no plano, só no state | Baixa | state fora do git (CP3); `describe` mostra só a origem (`secret_key_ref`); MySQL só `ClusterIP`, sem porta no Windows | Resolvido (CP4) |
 
 ## Evidências de verificação
@@ -295,6 +317,13 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP5 | `flyway_schema_history.execution_time`: DML 2 ms/5 ms; `initial schema` 20,2 s, `add customer address` 15,7 s (8 `ALTER`). Banco `bench` descartável (`mysql -vvv`): `INSERT`/`UPDATE` 0,00 s, `ADD COLUMN` 0,27 s, `CREATE TABLE` 1,23 s, `ADD CONSTRAINT CHECK` 1,50 s; `bench` apagado | 2026-10-18 |
 | CP5 | Carga 1 (HPA CPU + memória), k6 `grafana/k6:1.3.0` só em `localhost:8080`: CPU 154% → 2 pods, 183% → 3 pods; pod novo nasce a ~1000m (boot da JVM) sem cascata; 6714 requisições, **0 falhas**, p95 84 ms. Fim da carga: 3 → 2 em ~1 min e **travou em 2** (memória 48%/85%, `ScalingActive ... from memory`) | 2026-10-18 |
 | CP5 | Após remover a memória (`kubectl diff -k` → só o bloco `memory` sai; `apply` → `configured`): 2 → 1 ocioso em ~1 min. Carga 2: CPU 104% → 2, 3 pods no pico (máx. 124%); 6727 requisições, **0 falhas**, p95 77 ms, máx. 836 ms; fim da carga → 3 → 2 → **1** em ~1 min. Critérios "escala sobe", "escala desce" e "mesmo endereço" ✅ | 2026-10-18 |
+| CP6 | Run verde [`39360660986`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39360660986) (`d902d1b`): `build-test` 1m53s, `image` 1m40s, `deploy-kind` 2m35s, **total 6m17s** (meta ≤ 40 min). Banco vazio no runner: step `Smoke test` (rollout incluído) em 36 s; no run `39363382338`, `Started ... in 17.791 seconds`, contra ~140 s no kind sobre WSL2 (confirma o gargalo de disco do CP5); `Smoke test passed for ghcr.io/santiagosilvestre/workshop-management-system:d902d1b...` | 2026-10-20 |
+| CP6 | Pull anônimo `GET ghcr.io/v2/santiagosilvestre/workshop-management-system/manifests/d902d1b...` → `200` (pacote público, D9) | 2026-10-20 |
+| CP6 | Logs do run `39360660986` (zip, `Select-String`): nenhum `PRIVATE KEY`/`client-key-data`/`eyJ`; `client_key`/`client_certificate` só como `(known after apply)`; secrets do `kind-ci`, `GITHUB_TOKEN` e cabeçalho `Authorization` como `***` | 2026-10-20 |
+| CP6 | Push em outra branch (`git push fork feat/terraform-san:test/cd-trigger-probe`, depois apagada) → nenhuma execução nova (Santiago) | 2026-10-20 |
+| CP6 | Teste quebrado: run [`39363151926`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39363151926) (`8a9f474`) → `Build and test` falhou em `Run quality gate`; `Build and push image` e `Deploy to kind and smoke test` **skipped** | 2026-10-20 |
+| CP6 | Revert `1cc7409`: run [`39363382338`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39363382338) falhou no smoke test (corrida com o kube-proxy, ver desvios); após o retry, run verde [`39364405763`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39364405763) (`46cd5b2`), **total 5m29s** | 2026-10-20 |
+| CP6 | `git diff --quiet 3d0cdb3 HEAD -- .github/workflows/ci.yml` → sem diferenças (`ci.yml` intacto) | 2026-10-20 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação

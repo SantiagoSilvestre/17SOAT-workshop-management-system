@@ -173,6 +173,40 @@ Execute `make help` para consultar comandos de Docker e banco de dados. `make do
 volume local do banco e é necessário uma vez ao adotar o baseline inicial do Flyway sobre uma base criada antes pelo
 Hibernate.
 
+## Pipeline de entrega (CD)
+
+O workflow `CD` (`.github/workflows/cd.yml`) entrega a aplicação num cluster kind criado dentro do próprio runner e
+descartado no fim. Ele roda em pushes na branch de entrega, num fork onde o desenvolvedor é dono (environments e
+secrets exigem admin). O `ci.yml` não muda.
+
+| Job | Depende de | O que faz |
+|---|---|---|
+| `Build and test` | — | `./mvnw clean verify` (testes e gate JaCoCo) |
+| `Build and push image` | `Build and test` | `docker build` e push de `ghcr.io/<dono em minúsculas>/workshop-management-system:<sha do commit>` com o `GITHUB_TOKEN` |
+| `Deploy to kind and smoke test` | `Build and push image` | Terraform `infra/local/cluster` e `infra/local/database`, `secrets.env` a partir do environment, `kubectl apply -k k8s/overlays/local` com a imagem do SHA e smoke test |
+
+O smoke test espera o rollout, exige readiness `UP`, faz login com o admin de bootstrap e chama
+`GET /api/service-orders` com o token (deve dar `200`). Se algo falhar, o step `Diagnostics` mostra pods, `describe` e
+as últimas 200 linhas do log do app. Uma falha em `Build and test` faz os outros dois jobs serem pulados.
+
+**Nome da branch de entrega.** Ele aparece **só** em `on.push.branches` no topo do `cd.yml` (hoje
+`feat/terraform-san`). Para trocar, edite essa linha. Registry, nome da imagem e dono vêm de `env:` e de
+`github.repository_owner`, então o mesmo arquivo funciona no fork e no repositório do grupo.
+
+**Configuração do fork (uma vez):**
+
+1. Fork do repositório na conta pessoal e, na aba **Actions**, habilitar os workflows.
+2. **Settings → Environments → New environment** `kind-ci`, com os secrets `APP_SECURITY_JWT_SECRET` e
+   `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET`. Use valores aleatórios novos de pelo menos 32 bytes (o JWT recusa
+   chaves menores), por exemplo no PowerShell:
+   `$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`.
+3. `git remote add fork https://github.com/<usuario>/17SOAT-workshop-management-system.git` e
+   `git push -u fork <branch de entrega>`.
+4. Conferir se o pacote `workshop-management-system` em **Packages** está público (D9). Publicado pelo
+   `GITHUB_TOKEN`, ele herda a visibilidade do repositório. O kind do runner puxa a imagem sem login.
+
+Uma execução completa leva ~6 min (meta: até 40 min).
+
 ## Fluxo de features
 
 As especificações de features ficam em `docs/features/`. Alterações de contratos HTTP devem atualizar as expectativas

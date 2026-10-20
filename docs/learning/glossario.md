@@ -530,6 +530,60 @@ test-drive escrito, que qualquer mecânico repete igual. Ver
 
 ## CI/CD
 
+### CI x CD
+
+CI (integração contínua) compila e testa cada mudança: "o código está saudável?". CD (entrega contínua) empacota,
+instala num ambiente e confere que funciona: "dá para rodar de verdade?". Analogia: inspecionar a peça na bancada x
+montá-la no carro e dar a partida. Aqui: `ci.yml` (do grupo) e `cd.yml` (passo 9).
+
+### Workflow, job, step e action
+
+Workflow é o arquivo em `.github/workflows/`; job é uma etapa que roda numa VM própria; step é cada tarefa do job,
+em sequência (`run:` = comando, `uses:` = action pronta de terceiros). Analogia: OS → etapas → tarefas. Jobs não
+compartilham disco, por isso a imagem passa do `image` para o `deploy-kind` pelo GHCR.
+
+### `needs` e `outputs` entre jobs
+
+`needs` ordena os jobs e pula os seguintes quando um falha (provado no CP6: teste quebrado → `image` e `deploy-kind`
+skipped). `outputs` passa um valor pequeno de um job para o outro; aqui, a referência da imagem calculada no `image`.
+
+### Gatilho por branch (`on.push.branches`)
+
+Define quais pushes disparam o workflow. No `cd.yml` é o único lugar com o nome da branch de entrega; um push em
+outra branch não dispara nada (ver [README](../../README.md#pipeline-de-entrega-cd)).
+
+### `GITHUB_TOKEN` e `permissions`
+
+Credencial temporária criada pelo GitHub para cada job, válida só enquanto ele roda. O bloco `permissions` limita o
+que ela pode fazer (menor privilégio): só o job `image` tem `packages: write` para publicar no GHCR.
+
+### Action fixada por SHA
+
+`uses: dono/action@<sha do commit>` em vez de `@v4`: a tag pode ser movida para outro código (ataque de *supply
+chain*), o commit não. Analogia: pedir a peça pelo número de série, não "a mais nova da marca".
+
+### Máscara de secret (`***`)
+
+O GitHub procura o **texto exato** de cada secret no log e o troca por `***`; `::add-mask::` estende isso a valores
+criados no job (o token do smoke test). Não é criptografia: imprimir o secret em base64 ou invertido vaza. A barreira
+real é quem pode fazer push no repositório.
+
+### Fork
+
+Cópia do repositório na conta pessoal, com histórico e configurações próprios. Usado porque environments e secrets
+exigem ser admin; a imagem vai para `ghcr.io/<usuario>/...` sem afetar os colegas.
+
+### `concurrency`
+
+Agrupa execuções (aqui, por workflow + branch); com `cancel-in-progress`, um push novo cancela a execução anterior.
+Cada execução tem o próprio cluster, então não se perde nada.
+
+### Teste flaky e condição de corrida no NodePort
+
+Teste flaky passa ou falha conforme o tempo, sem mudança de código. No CP6, o pod ficou Ready e o `curl` chegou 13 ms
+antes de o kube-proxy programar o endpoint no NodePort (`connection reset`). Correção: repetir com limite
+(`curl --retry`), não `sleep` fixo nem "rodar de novo até passar".
+
 ### GHCR
 
 GitHub Container Registry (`ghcr.io`): registry de imagens ligado à conta do GitHub, onde a pipeline publica a imagem
