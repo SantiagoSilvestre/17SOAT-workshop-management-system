@@ -260,8 +260,14 @@ commits focados:
       manifestos e no Terraform (`imagePullPolicy`, tipos de Service, PVC `data-mysql-0`, `random_password` de 24) e
       resultados do HPA tirados das evidências do CP5. Link checker sem links quebrados. Pendente para a verificação
       do CP7: seguir o `local-kubernetes.md` do zero.
-- [ ] 4. README como capa (objetivos da fase, diagrama, quickstart, mapa "quero... → leia") e `docs/README.md`
+- [x] 4. README como capa (objetivos da fase, diagrama, quickstart, mapa "quero... → leia") e `docs/README.md`
       (índice por público).
+      README com 102 linhas (de 776): objetivos da fase 2 tirados da functional-spec, diagrama ponta a ponta
+      (código → pipeline → GHCR → kind/AWS → banco), início rápido de 2 comandos, tabela "Quero... → Leia", stack,
+      estrutura do repositório e status da fase. `docs/README.md` indexa tudo por público (avaliar, rodar, consumir,
+      contribuir) e registra as regras de manutenção. O aviso sobre o `AGENTS.md` foi para o `CONTRIBUTING.md`.
+      Sem badges de propósito: a URL de um badge fixa o repositório (fork ou grupo), e a branch entregue ainda não foi
+      escolhida.
 - [ ] 5. `AGENTS.md` (linhas que exigem o teste manual "no README") e demais links apontando para os novos caminhos.
 - [ ] Postman/README: fluxo de teste manual atualizado (regra do `AGENTS.md`).
 - [ ] Gravar o vídeo local: deploy, pipeline, consumo das APIs e HPA escalando.

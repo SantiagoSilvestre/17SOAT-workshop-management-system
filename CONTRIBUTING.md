@@ -1,5 +1,9 @@
 # Contribuindo
 
+Leia o [AGENTS.md](AGENTS.md) antes de alterar a aplicação: ele define as regras de arquitetura, o fluxo de
+especificação (SDD), os testes exigidos, a revisão de segurança e as convenções de Git. Este arquivo reúne só os
+comandos do dia a dia.
+
 ## Comandos de desenvolvimento
 
 ```bash
