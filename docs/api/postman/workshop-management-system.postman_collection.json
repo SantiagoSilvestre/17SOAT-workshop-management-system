@@ -1139,7 +1139,7 @@
               "request": {
                 "method": "GET",
                 "url": "{{baseUrl}}/api/service-orders/{{serviceOrderId}}/status",
-                "description": "Usado em vários pontos da sequência E2E (README passos 5, 7, 10 e 14); o teste valida apenas que o status pertence ao enum, já que o valor exato depende de qual checkpoint do fluxo está em execução."
+                "description": "Usado em vários pontos da sequência E2E (passos 5, 7, 10 e 14 de docs/api/manual-testing.md); o teste valida apenas que o status pertence ao enum, já que o valor exato depende de qual checkpoint do fluxo está em execução."
               }
             },
             {
@@ -2225,7 +2225,7 @@
               "raw": "{\n  \"decisions\": [\n    { \"serviceExecutionId\": \"{{executionId}}\", \"decision\": \"APPROVED\" }\n  ]\n}"
             },
             "url": "{{baseUrl}}/api/estimates/{{estimateId}}/decisions",
-            "description": "RF41: alternativa a \"Estimates / Decide estimate lines\" que simula o gateway externo de aprovação do Customer — sem JWT, autenticada só por HMAC. Rode NO LUGAR do passo 10 do README (a linha precisa estar PENDING; depois de decidida, uma segunda decisão retorna 409). O pre-request script calcula X-Estimate-Gateway-Timestamp (epoch seconds) e X-Estimate-Gateway-Signature (hex de HMAC-SHA256(timestamp + '.' + corpo)) com a variável estimateGatewaySecret, que deve ser igual a APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET da aplicação. Assinatura errada, timestamp com mais de 300s de diferença ou corpo alterado após a assinatura retornam 401."
+            "description": "RF41: alternativa a \"Estimates / Decide estimate lines\" que simula o gateway externo de aprovação do Customer — sem JWT, autenticada só por HMAC. Rode NO LUGAR do passo 10 de docs/api/manual-testing.md (a linha precisa estar PENDING; depois de decidida, uma segunda decisão retorna 409). O pre-request script calcula X-Estimate-Gateway-Timestamp (epoch seconds) e X-Estimate-Gateway-Signature (hex de HMAC-SHA256(timestamp + '.' + corpo)) com a variável estimateGatewaySecret, que deve ser igual a APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET da aplicação. Assinatura errada, timestamp com mais de 300s de diferença ou corpo alterado após a assinatura retornam 401."
           }
         },
         {
@@ -2281,7 +2281,7 @@
               "raw": "{\n  \"intendedStatus\": \"APPROVED\"\n}"
             },
             "url": "{{baseUrl}}/api/service-orders/{{serviceOrderId}}/external-status-updates",
-            "description": "RF40: simula a ferramenta externa que processou a resposta de e-mail do Customer e envia só a intenção (APPROVED ou REJECTED) para a OS. Todas as linhas PENDING do orçamento SENT da OS são decididas, pelas mesmas regras de \"Estimates / Decide estimate lines\". Rode NO LUGAR do passo 10 do README (com a OS no ponto em que o orçamento foi gerado); reenviar depois de aplicado retorna 409. Autenticação: a mesma assinatura HMAC de RF41, calculada pelo pre-request script com estimateGatewaySecret; sem assinatura válida retorna 401, e um JWT sem assinatura retorna 403."
+            "description": "RF40: simula a ferramenta externa que processou a resposta de e-mail do Customer e envia só a intenção (APPROVED ou REJECTED) para a OS. Todas as linhas PENDING do orçamento SENT da OS são decididas, pelas mesmas regras de \"Estimates / Decide estimate lines\". Rode NO LUGAR do passo 10 de docs/api/manual-testing.md (com a OS no ponto em que o orçamento foi gerado); reenviar depois de aplicado retorna 409. Autenticação: a mesma assinatura HMAC de RF41, calculada pelo pre-request script com estimateGatewaySecret; sem assinatura válida retorna 401, e um JWT sem assinatura retorna 403."
           }
         },
         {

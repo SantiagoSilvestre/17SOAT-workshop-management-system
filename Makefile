@@ -134,7 +134,7 @@ db-shell:
 	$(COMPOSE) exec mysql sh -lc 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"'
 
 # Runs the requests named below, one Newman invocation per request, in this order. This mirrors the
-# happy-path sequence documented in README.md without duplicating requests into a second collection.
+# happy-path sequence documented in docs/api/manual-testing.md without duplicating requests into a second collection.
 # Newman's --folder flag matches individual request names too, but it does NOT reorder execution: a
 # single invocation with several --folder flags still runs matched items in the collection's own
 # physical order, not the order the flags were given. Chaining one invocation per step, wiring

@@ -268,7 +268,12 @@ commits focados:
       contribuir) e registra as regras de manutenção. O aviso sobre o `AGENTS.md` foi para o `CONTRIBUTING.md`.
       Sem badges de propósito: a URL de um badge fixa o repositório (fork ou grupo), e a branch entregue ainda não foi
       escolhida.
-- [ ] 5. `AGENTS.md` (linhas que exigem o teste manual "no README") e demais links apontando para os novos caminhos.
+- [x] 5. `AGENTS.md` (linhas que exigem o teste manual "no README") e demais links apontando para os novos caminhos.
+      `AGENTS.md`: a regra de HTTP e 2 itens do checklist de conclusão apontam para `docs/api/manual-testing.md` e
+      para os guias de `docs/` (**mudança de regra do projeto: avisar o grupo**). Também atualizados: comentário do
+      alvo `e2e` no `Makefile` e 3 descrições da collection Postman ("passo N do README"; a numeração da Sequência
+      executável não mudou). Mantidas por serem registro histórico: ADR-008 (linha 143) e o README da feature
+      `service-order-status-notifications`. Link checker: 13 documentos, 0 links quebrados.
 - [ ] Postman/README: fluxo de teste manual atualizado (regra do `AGENTS.md`).
 - [ ] Gravar o vídeo local: deploy, pipeline, consumo das APIs e HPA escalando.
 
