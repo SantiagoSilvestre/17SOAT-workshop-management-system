@@ -229,15 +229,37 @@ Commit sugerido: `feat(platform): add delivery pipeline with ephemeral kind clus
 
 ### CP7 — README local e vídeo de garantia (passo 10, previsto 22/10)
 
-- [ ] README: objetivos da fase, diagrama mermaid (componentes, infra e fluxo de deploy), execução local com compose,
-      provisionamento com Terraform, deploy no kind, teste de carga, recursos criados por stack, pipeline e link para
-      a collection.
+**Status: In Progress (2026-10-20).**
+
+**Escopo ampliado (aprovado por Santiago Silvestre em 2026-10-20):** além de documentar o ambiente local, o README de
+776 linhas é reorganizado em documentos com uma responsabilidade cada (Diátaxis: tutorial, how-to, referência,
+explicação). O README vira a capa (≤ 150 linhas) e o detalhe vai para `docs/`. `docs/Architecture.md`,
+`docs/Architecture-Decisions.md`, `docs/adr/` e `docs/features/` não mudam de lugar, porque o `CLAUDE.md`, as regras
+por épico e o agente `architecture-reviewer` apontam para eles. Referências ao `README.md` em specs antigas são
+registro histórico e não são reescritas. É uma mudança só de documentação (plano conciso do `AGENTS.md`), dividida em
+commits focados:
+
+- [x] 1. Mover as seções do README para `docs/setup/`, `docs/operations/`, `docs/api/` e `CONTRIBUTING.md` sem
+      reescrever o texto (só títulos e alvos de links mudam); incorporar o `DOCKER.md` e remover o `HELP.md`
+      (boilerplate do Spring Initializr); apontar para os novos caminhos as referências vivas (glossário, comentário do
+      `cd.yml`, descrição da collection, `manual-test-guide.md` do RF40). Verificado por comparação linha a linha:
+      nenhuma linha de conteúdo perdida.
+- [ ] 2. `docs/architecture/overview.md`: visão C4 (contexto, containers, módulos, deploy) com diagramas mermaid.
+- [ ] 3. `docs/setup/local-kubernetes.md` (Terraform → deploy no kind → verificação → destroy, com equivalentes sem
+      `make`, recursos criados por stack) e `docs/operations/load-testing-hpa.md`; traduzir e deduplicar o conteúdo
+      vindo do `DOCKER.md` (a frase "Mailpit is not deployed to Kubernetes" está desatualizada).
+- [ ] 4. README como capa (objetivos da fase, diagrama, quickstart, mapa "quero... → leia") e `docs/README.md`
+      (índice por público).
+- [ ] 5. `AGENTS.md` (linhas que exigem o teste manual "no README") e demais links apontando para os novos caminhos.
 - [ ] Postman/README: fluxo de teste manual atualizado (regra do `AGENTS.md`).
 - [ ] Gravar o vídeo local: deploy, pipeline, consumo das APIs e HPA escalando.
 
-Verificação: seguir o README do zero em um cluster novo (`infra-local-down` → `up` → deploy) sem passo implícito.
+Verificação: README ≤ 150 linhas e sem conteúdo duplicado; link checker com 0 links quebrados (inclusive âncoras);
+mermaid renderizado no GitHub; seguir só o `docs/setup/local-kubernetes.md` do zero em um cluster novo
+(`infra-local-down` → `up` → deploy → Postman → carga) sem passo implícito.
 
-Commit sugerido: `docs(platform): document local kubernetes environment and delivery pipeline`
+Commits sugeridos: `docs(platform): move readme sections into dedicated docs without rewording`, seguido dos commits 2
+a 5 acima, e por fim `docs(platform): document local kubernetes environment and delivery pipeline`.
 
 ### CP8 — AWS Academy (passo 11, previsto 23–24/10; data-limite 24/10, 23h)
 

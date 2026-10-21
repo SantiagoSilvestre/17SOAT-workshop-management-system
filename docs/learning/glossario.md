@@ -550,7 +550,7 @@ skipped). `outputs` passa um valor pequeno de um job para o outro; aqui, a refer
 ### Gatilho por branch (`on.push.branches`)
 
 Define quais pushes disparam o workflow. No `cd.yml` é o único lugar com o nome da branch de entrega; um push em
-outra branch não dispara nada (ver [README](../../README.md#pipeline-de-entrega-cd)).
+outra branch não dispara nada (ver [CI/CD](../operations/ci-cd.md#pipeline-de-entrega-cd)).
 
 ### `GITHUB_TOKEN` e `permissions`
 

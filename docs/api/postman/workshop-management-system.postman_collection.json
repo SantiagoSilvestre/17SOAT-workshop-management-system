@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "c0d4f6e8-0f31-4d2f-9ba8-17f0b5fe2026",
     "name": "Workshop Management System",
-    "description": "REST API collection grouped by bounded context. Every request asserts its HTTP status and key response fields via pm.test, so the collection can run as an E2E smoke suite (manually in the Postman app or via `make e2e` / Newman) in addition to serving as living documentation. See README.md for the ordered happy-path sequence.",
+    "description": "REST API collection grouped by bounded context. Every request asserts its HTTP status and key response fields via pm.test, so the collection can run as an E2E smoke suite (manually in the Postman app or via `make e2e` / Newman) in addition to serving as living documentation. See docs/api/manual-testing.md for the ordered happy-path sequence.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
