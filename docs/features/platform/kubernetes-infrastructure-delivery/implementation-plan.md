@@ -244,7 +244,13 @@ commits focados:
       (boilerplate do Spring Initializr); apontar para os novos caminhos as referências vivas (glossário, comentário do
       `cd.yml`, descrição da collection, `manual-test-guide.md` do RF40). Verificado por comparação linha a linha:
       nenhuma linha de conteúdo perdida.
-- [ ] 2. `docs/architecture/overview.md`: visão C4 (contexto, containers, módulos, deploy) com diagramas mermaid.
+- [x] 2. `docs/architecture/overview.md`: visão C4 (contexto, containers, módulos, implantação local e pipeline) com 5
+      diagramas mermaid, escrita a partir do código atual (dependências entre módulos, listeners, HPA, namespaces). A
+      seção "Arquitetura" do README foi absorvida e virou link. Verificado: os 5 diagramas renderizam no
+      `mermaid-cli` 11.4.2 e o link checker não acusou links quebrados. Divergências encontradas e **não
+      corrigidas** (documentos compartilhados, fora do escopo): a seção "Current Repository State" do `docs/Architecture.md` ainda descreve os
+      módulos `customer/technician/parts`; o `docs/PROJECT-STRUCTURE.md` não cita o módulo `identity`; o README dizia
+      "MySQL 8.0", mas o compose e o kind usam `mysql:8.4`.
 - [ ] 3. `docs/setup/local-kubernetes.md` (Terraform → deploy no kind → verificação → destroy, com equivalentes sem
       `make`, recursos criados por stack) e `docs/operations/load-testing-hpa.md`; traduzir e deduplicar o conteúdo
       vindo do `DOCKER.md` (a frase "Mailpit is not deployed to Kubernetes" está desatualizada).
