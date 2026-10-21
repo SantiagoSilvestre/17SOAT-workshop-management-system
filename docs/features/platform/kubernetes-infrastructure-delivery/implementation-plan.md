@@ -251,9 +251,15 @@ commits focados:
       corrigidas** (documentos compartilhados, fora do escopo): a seção "Current Repository State" do `docs/Architecture.md` ainda descreve os
       módulos `customer/technician/parts`; o `docs/PROJECT-STRUCTURE.md` não cita o módulo `identity`; o README dizia
       "MySQL 8.0", mas o compose e o kind usam `mysql:8.4`.
-- [ ] 3. `docs/setup/local-kubernetes.md` (Terraform → deploy no kind → verificação → destroy, com equivalentes sem
+- [x] 3. `docs/setup/local-kubernetes.md` (Terraform → deploy no kind → verificação → destroy, com equivalentes sem
       `make`, recursos criados por stack) e `docs/operations/load-testing-hpa.md`; traduzir e deduplicar o conteúdo
       vindo do `DOCKER.md` (a frase "Mailpit is not deployed to Kubernetes" está desatualizada).
+      `configuration.md` virou referência completa, gerada a partir do `application.properties`, com a origem de
+      cada valor por ambiente. Corrigido nessa revisão: o `DOCKER.md` dizia que o canal de e-mail padrão era `smtp`,
+      mas o padrão da aplicação é `log` (quem liga o `smtp` é o compose e o ConfigMap). Fatos conferidos nos
+      manifestos e no Terraform (`imagePullPolicy`, tipos de Service, PVC `data-mysql-0`, `random_password` de 24) e
+      resultados do HPA tirados das evidências do CP5. Link checker sem links quebrados. Pendente para a verificação
+      do CP7: seguir o `local-kubernetes.md` do zero.
 - [ ] 4. README como capa (objetivos da fase, diagrama, quickstart, mapa "quero... → leia") e `docs/README.md`
       (índice por público).
 - [ ] 5. `AGENTS.md` (linhas que exigem o teste manual "no README") e demais links apontando para os novos caminhos.

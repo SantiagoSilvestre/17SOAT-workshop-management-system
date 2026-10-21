@@ -1,33 +1,85 @@
 # Configuração
 
-See `.env.example` for database, port, profile and seed settings. The application reads the database through
-`DB_URL`, `DB_USERNAME` and `DB_PASSWORD`, the same contract used in Kubernetes. The schema is always validated
-(`ddl-auto=validate`) after Flyway runs. Production-like environments must leave demonstration seeds disabled and
-manage credentials externally.
+Referência das variáveis de ambiente lidas pela aplicação. A mesma imagem roda em todos os ambientes; só muda de onde
+cada valor vem. A fonte da verdade são `src/main/resources/application.properties` e `application-dev.properties`: se
+esta tabela divergir deles, vale o código.
 
-Swagger UI is available at `http://localhost:8080/swagger-ui.html` after startup.
+## Onde os valores são definidos
 
-## E-mail Notifications (RF52)
+| Ambiente | Valores não sensíveis | Segredos |
+| --- | --- | --- |
+| Docker Compose | `docker-compose.yml`, sobrescrito pelo `.env` (modelo em `.env.example`) | `.env` |
+| Kubernetes (kind) | ConfigMap `workshop-app-config` (`k8s/base/app-config.env` + overlay) e ConfigMap `workshop-db` (Terraform) | Secret `workshop-app` (de `k8s/overlays/local/secrets.env`) e Secret `workshop-db` (Terraform) |
+| Pipeline (`cd.yml`) | Os mesmos do kind | Secrets do environment `kind-ci` no GitHub |
 
-The compose stack includes **Mailpit**, a local SMTP simulator, for demo and testing. The UI is available at
-`http://localhost:8025` for inspecting e-mails sent by the application.
+O Deployment carrega os quatro objetos do Kubernetes com `envFrom`, então cada chave vira uma variável de ambiente do
+container.
 
-| Configuration | Environment Variable | Default | Note |
+## Variáveis
+
+### Banco de dados
+
+| Variável | Padrão da aplicação | Kubernetes | Observação |
 | --- | --- | --- | --- |
-| **Channel** | `APP_NOTIFICATION_EMAIL_CHANNEL` | `smtp` | `log` uses simulated logging instead of SMTP. |
-| **From address** | `APP_NOTIFICATION_EMAIL_FROM` | `no-reply@workshop.local` | Sender address in all outbound e-mails. |
-| **Mail host** | `SPRING_MAIL_HOST` | `mailpit` | `mailpit` in docker-compose; update for cloud environments. |
-| **Mail port** | `SPRING_MAIL_PORT` | `1025` | Mailpit SMTP port. For cloud (Kubernetes), use ConfigMap. |
-| **Mail username** | `SPRING_MAIL_USERNAME` | *(empty)* | Mailpit requires no authentication. For production, store in Secret. |
-| **Mail password** | `SPRING_MAIL_PASSWORD` | *(empty)* | Mailpit requires no authentication. For production, store in Secret. |
+| `DB_URL` | `jdbc:mysql://localhost:3306/workshop_management_system` | ConfigMap `workshop-db` (Terraform) | URL JDBC completa |
+| `DB_USERNAME` | `root` | Secret `workshop-db` (Terraform) | |
+| `DB_PASSWORD` | `root` | Secret `workshop-db` (Terraform, `random_password`) | Gerada a cada `apply` em state vazio |
 
-To disable SMTP notifications and use log-only mode, override `.env`:
+O schema é sempre validado (`ddl-auto=validate`, fixo) depois que o Flyway aplica as migrations; a aplicação nunca
+cria nem altera tabelas sozinha.
+
+### Perfil e dados de demonstração
+
+| Variável | Padrão da aplicação | Compose / kind | Observação |
+| --- | --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | `default` | `dev` | |
+| `APP_SEED_ENABLED` | `false` (no perfil `dev`: `true`) | `true` | Seeds só rodam com perfil `dev` **e** esta variável ligada; nunca em produção |
+
+### Segurança
+
+| Variável | Padrão da aplicação | Observação |
+| --- | --- | --- |
+| `APP_SECURITY_JWT_SECRET` | valor fixo de desenvolvimento | **Trocar em qualquer ambiente real.** Mínimo de 32 bytes |
+| `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` | valor fixo de desenvolvimento | **Trocar em qualquer ambiente real.** Deve ser igual à variável `estimateGatewaySecret` da collection Postman |
+| `APP_SECURITY_ESTIMATE_GATEWAY_TIMESTAMP_TOLERANCE_SECONDS` | `300` | Janela aceita para o timestamp da assinatura HMAC |
+| `APP_SECURITY_ESTIMATE_GATEWAY_MAX_BODY_BYTES` | `65536` | Tamanho máximo do corpo assinado |
+
+Para gerar um segredo aleatório no PowerShell:
+
+```powershell
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+```
+
+### Fornecedor externo
+
+| Variável | Padrão da aplicação | Compose / kind | Observação |
+| --- | --- | --- | --- |
+| `SUPPLIER_BASE_URL` | `http://localhost:8089` | `http://supplier-simulator:8080` | O simulador WireMock usa `docker/wiremock/mappings` |
+| `SUPPLIER_API_KEY` | vazio | vazio | Segredo; o simulador local não confere a chave |
+| `SUPPLIER_CONNECT_TIMEOUT` | `2s` | `2s` | |
+| `SUPPLIER_READ_TIMEOUT` | `5s` | `5s` | |
+
+### E-mail (RF52)
+
+| Variável | Padrão da aplicação | Compose / kind | Observação |
+| --- | --- | --- | --- |
+| `APP_NOTIFICATION_EMAIL_CHANNEL` | `log` | `smtp` | `log` só registra a mensagem no log; `smtp` envia de verdade |
+| `APP_NOTIFICATION_EMAIL_FROM` | `no-reply@workshop.local` | igual | Remetente |
+| `SPRING_MAIL_HOST` | sem padrão | `mailpit` | Sem host configurado, nenhum envio SMTP é criado |
+| `SPRING_MAIL_PORT` | sem padrão | `1025` | |
+| `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` | sem padrão | vazios | Segredos; o Mailpit não exige autenticação |
+
+As variáveis `SPRING_MAIL_*` não têm padrão de propósito: nenhuma credencial fica versionada. Em um provedor SMTP
+real, host e porta vão para o ConfigMap, e usuário e senha vão para o Secret. Para desligar o envio no Compose:
 
 ```bash
 APP_NOTIFICATION_EMAIL_CHANNEL=log docker compose up -d --build
 ```
 
-For Kubernetes deployments:
-- Add `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT` and `APP_NOTIFICATION_EMAIL_FROM` to the application **ConfigMap**.
-- Add `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD` to a **Secret** (if required by your SMTP provider).
-- Mailpit is not deployed to Kubernetes; use a production SMTP service and credentials instead.
+### Outras
+
+| Variável | Onde | Observação |
+| --- | --- | --- |
+| `TZ` | Compose e kind: `America/Sao_Paulo` | Fuso do container |
+| `JAVA_TOOL_OPTIONS` | Imagem: `-XX:MaxRAMPercentage=75.0` | Heap proporcional ao limite de memória do container |
+| `SERVER_PORT` | Compose: `8080` | Mesmo valor padrão do Spring |

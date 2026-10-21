@@ -169,7 +169,7 @@ flowchart LR
 | Ambiente | Para que serve | Como sobe | Guia |
 | --- | --- | --- | --- |
 | Docker Compose | Desenvolvimento do dia a dia | `docker compose up -d --build` | [Execução local com Docker Compose](../setup/local-docker-compose.md) |
-| kind (local) | Reproduzir o Kubernetes no PC: probes, rolling update, HPA | Terraform (cluster e banco) + Kustomize | `docs/setup/local-kubernetes.md` (em construção) |
+| kind (local) | Reproduzir o Kubernetes no PC: probes, rolling update, HPA | Terraform (cluster e banco) + Kustomize | [Ambiente Kubernetes local](../setup/local-kubernetes.md) |
 | kind (pipeline) | Provar a cada push que a imagem sobe e responde | `cd.yml`, num cluster criado e descartado no runner | [CI/CD](../operations/ci-cd.md) |
 | AWS Academy | Ambiente em nuvem (EKS + RDS) | Planejado | [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md) |
 
