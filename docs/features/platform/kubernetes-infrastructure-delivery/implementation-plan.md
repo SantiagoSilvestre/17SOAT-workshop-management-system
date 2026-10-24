@@ -286,10 +286,56 @@ a 5 acima, e por fim `docs(platform): document local kubernetes environment and 
 
 ### CP8 — AWS Academy (passo 11, previsto 23–24/10; data-limite 24/10, 23h)
 
-- [ ] **Antes de qualquer código:** confirmar região, `LabRole`, tipos de instância, disponibilidade de EKS/NAT e
+- [x] **Antes de qualquer código:** confirmar região, `LabRole`, tipos de instância, disponibilidade de EKS/NAT e
       duração da sessão; marcar o item pendente da ADR-008. Se o desenho mudar, a technical-spec volta a `Draft`.
-- [ ] `infra/aws/bootstrap`, `infra/aws/cluster` e `infra/aws/database`, conforme a technical-spec.
-- [ ] `k8s/overlays/aws`: LoadBalancer com `loadBalancerSourceRanges`, HPA 2–4, sem seeds.
+      Confirmado em 2026-10-24: o desenho da technical-spec se mantém (evidências abaixo).
+- [ ] `infra/aws/bootstrap`, `infra/aws/cluster` e `infra/aws/database`, conforme a technical-spec. Código escrito e
+      validado em 2026-10-24 (falta o `apply`). Detalhes: EKS `1.35` (mesma versão do kind) com
+      `upgrade_policy STANDARD` (evita o suporte estendido, 6× mais caro); acesso ao cluster por access entry do
+      criador (`authentication_mode = "API"`); backend S3 com o bucket por `-backend-config` (nome com sufixo
+      aleatório); JDBC com `sslMode=REQUIRED` no RDS; `backup_retention_period = 0`.
+      **Desvio de implementação (2026-10-24):** a stack Terraform `bootstrap` foi substituída por um passo de AWS CLI
+      documentado em `infra/aws/bootstrap/README.md`. No primeiro `apply`, o bucket foi criado, mas a leitura
+      posterior do `aws_s3_bucket` falhou com `AccessDenied` em `s3:GetBucketObjectLockConfiguration` (*explicit deny*
+      na SCP da organização do Learner Lab), e o recurso ficou `tainted`. Todo refresh repete essa leitura, então não
+      há contorno no código. As outras leituras do bucket foram testadas uma a uma e são permitidas. O backend S3 não
+      faz essa leitura. O desenho da spec se mantém (bucket com versionamento, criptografia `AES256` e bloqueio
+      público; backend S3 com `use_lockfile`). O bucket já criado (`workshop-tfstate-dc4ef3e2`) foi reaproveitado
+      e o state local da stack foi descartado. A remoção do bucket passa a ser feita pelo console (Empty + Delete).
+- [ ] `k8s/overlays/aws`: LoadBalancer com `loadBalancerSourceRanges`, HPA 2–4, sem seeds. Escrito em 2026-10-24
+      (falta aplicar no EKS): imagem `ghcr.io/santiagosilvestre/workshop-management-system:<sha>`, cujo pull anônimo
+      do SHA `37bd708` retorna `200`; perfil `default` e seeds desligados herdados da base, sem merge; HPA 2–4 com
+      descida em 120 s. O IP liberado fica em `allowed-cidr.yaml`, ignorado pelo git, com um `.example` versionado;
+      sem o arquivo, o `kustomize build` falha (*fail-safe*: nunca abre o admin de bootstrap para `0.0.0.0/0`).
+      `kubectl kustomize` renderizado numa cópia: sem o arquivo → erro; com o arquivo → 9 objetos, `type:
+      LoadBalancer`, `/32`.
+      **Primeiro deploy manual (2026-10-24):**
+      - `cluster`: `apply` → `17 added`. Nodes `v1.35.9` `Ready` em `10.0.10.x`/`10.0.11.x`, sem IP externo.
+        `kubectl top nodes` ok (metrics-server do EKS).
+      - `database`: `apply` → `8 added`; o RDS levou 5m32s. Ordem implícita observada: o Secret foi criado antes do
+        RDS e o ConfigMap `workshop-db` depois do endpoint.
+      - Overlay: `kubectl apply -k k8s/overlays/aws --server-side`, que não grava a anotação
+        `last-applied-configuration` e resolve o achado Baixo do CP5 para a AWS. 2 pods `1/1`, um por node/AZ,
+        prontos em ~1 min no RDS (contra ~2m20s no WSL2). LB `*.elb.amazonaws.com` em ~1 min; readiness `UP` pela
+        internet a partir do IP liberado.
+      - Postman: 27/27 etapas do `make e2e`, 74 asserções, 0 falhas, 124 s.
+      - Teste negativo do `loadBalancerSourceRanges`: o mesmo `curl` feito do CloudShell (IP da AWS, fora do `/32`)
+        → `curl: (28) Connection timed out after 10002 milliseconds`, 2×. É *timeout*, e não um HTTP 403: o Security
+        Group descarta o pacote antes de qualquer resposta.
+      - Incidente de operação: o ConfigMap `supplier-simulator-mappings` não foi criado (só rodou o `--dry-run`) →
+        WireMock em `ContainerCreating` com `FailedMount`. Recriado o ConfigMap, o pod subiu sozinho, sem restart.
+        O `cd-aws.yml` deve automatizar esse passo.
+      - HPA com k6 (`load-test/hpa-load.js`, 5 min, até 20 VUs, pelo LB): CPU média chegou a 118%/70% → réplicas
+        2 → 3 → 4 (teto); 4887 requisições, `http_req_failed` 0,00%, `p(95)` 366,97 ms (limiares `< 1%` e
+        `< 2000 ms` ✓). Pods novos começaram perto do limit (983m–998m, aquecimento da JVM) e caíram para ~180m em
+        ~30 s. Sem carga, voltou 4 → 3 → 2 em ~2 min (janela de 120 s do overlay).
+      - Gravação do fluxo `intake` → e-mail do orçamento no Mailpit (via `kubectl port-forward`) → RF40
+        `external-status-updates` sem assinatura (`401`) e assinado com o segredo HMAC da AWS (`200`) → e-mail
+        "status atualizado para Execução".
+      - Destroy: `kubectl delete -k k8s/overlays/aws` → 9 objetos removidos; `aws elb`/`elbv2
+        describe-load-balancers` → `[]` antes do Terraform (o LB é criado pelo Kubernetes, não pelo Terraform, e
+        ficaria órfão). `database` → `8 destroyed` (RDS em 1m52s); `cluster` → `17 destroyed` (node group 8m17s,
+        EKS 2m56s, NAT 52s), sem `DependencyViolation`.
 - [ ] Environment `aws-academy` e `.github/workflows/cd-aws.yml` (`workflow_dispatch`).
 - [ ] Apresentar e registrar a estimativa de crédito por hora **antes** do primeiro `apply`.
 - [ ] README: renovação de credenciais por sessão, ordem de `apply`/`destroy` e lista de recursos.
@@ -323,6 +369,8 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, considerar `kubectl apply --server-side`, que não grava essa anotação | Aceito (local); revisar no CP8 |
 | `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
 | Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada. CP6: a pipeline só faz `apply` sobre state vazio (atributos `(known after apply)`) e nunca `destroy` (o runner é descartado); busca nos logs do run `39360660986` sem `PRIVATE KEY`/`client-key-data`, então nenhum filtro é necessário | Aceito (local); resolvido na pipeline (CP6) |
+| App como usuário master do RDS | Na AWS, o app conecta com o usuário master (`workshop_user`), que tem privilégios administrativos no MySQL; no local ele não é root | Média | RDS sem acesso público, porta 3306 só a partir do security group dos nodes, senha gerada (`random_password`) e entregue por Secret, ambiente destruído após cada uso. Criar um usuário de menor privilégio exigiria conexão do Terraform às subnets privadas (fora do escopo do lab) | Aceito (CP8) |
+| Endpoint público da API do EKS | O control plane aceita conexões de qualquer IP (`0.0.0.0/0`), necessário para o runner do GitHub | Baixa | Toda chamada exige credencial IAM válida + access entry; credenciais do lab expiram em 4 h | Aceito (CP8) |
 | Senhas do MySQL local | Geradas por `random_password` (24 caracteres), entregues por Secret; nunca aparecem no plano, só no state | Baixa | state fora do git (CP3); `describe` mostra só a origem (`secret_key_ref`); MySQL só `ClusterIP`, sem porta no Windows | Resolvido (CP4) |
 
 ## Evidências de verificação
@@ -369,6 +417,11 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP6 | Teste quebrado: run [`39363151926`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39363151926) (`8a9f474`) → `Build and test` falhou em `Run quality gate`; `Build and push image` e `Deploy to kind and smoke test` **skipped** | 2026-10-20 |
 | CP6 | Revert `1cc7409`: run [`39363382338`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39363382338) falhou no smoke test (corrida com o kube-proxy, ver desvios); após o retry, run verde [`39364405763`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/39364405763) (`46cd5b2`), **total 5m29s** | 2026-10-20 |
 | CP6 | `git diff --quiet 3d0cdb3 HEAD -- .github/workflows/ci.yml` → sem diferenças (`ci.yml` intacto) | 2026-10-20 |
+| CP8 | Learner Lab (Santiago, CloudShell do console): sessão de 4 h, crédito US$ 50; `sts get-caller-identity` → `assumed-role/voclabs/user...` (conta do lab, não pessoal); `iam get-role LabRole` → `arn:aws:iam::<conta>:role/LabRole`; região `us-east-1`. Primeira tentativa no terminal da página do lab (role `runserver`) negou tudo: terminal errado, não restrição do lab | 2026-10-24 |
+| CP8 | `--dry-run`: `run-instances t3.medium` e `create-nat-gateway` → `DryRunOperation` (permitidos); `s3 ls` → OK; `eks list-clusters` → `[]`; add-on `metrics-server` compatível com EKS `1.34`–`1.37`; RDS MySQL `8.4.5`–`8.4.11` e `db.t3.micro` disponíveis (criação do RDS só se prova no `apply`: não há dry-run) | 2026-10-24 |
+| CP8 | `terraform fmt -check -recursive infra` → exit 0; `init -backend=false` + `validate` em `infra/aws/{bootstrap,cluster,database}` → `Success! The configuration is valid.`; lock files com `windows_amd64` + `linux_amd64` (`aws 6.69.1`, `kubernetes 3.3.0`, `random 3.9.1`) | 2026-10-24 |
+| CP8 | HPA no EKS com k6: 2 → 4 réplicas a 118%/70%, 4887 req, 0,00% de falhas, p95 366,97 ms; descida para 2 em ~2 min | 2026-10-24 |
+| CP8 | Destroy: app (`kubectl delete -k`, LB `[]` em `elb`/`elbv2`) → `database` `8 destroyed` → `cluster` `17 destroyed`. Conferência por AWS CLI: `eks list-clusters`, `rds describe-db-instances`, `ec2 describe-nat-gateways` (pending/available), `ec2 describe-addresses`, `ec2 describe-instances` (pending/running) e `elb describe-load-balancers` → `[]` em todos; contexto do EKS removido do kubeconfig e planos `*.tfplan` apagados. Mantido de propósito: bucket do state `workshop-tfstate-dc4ef3e2` | 2026-10-24 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação

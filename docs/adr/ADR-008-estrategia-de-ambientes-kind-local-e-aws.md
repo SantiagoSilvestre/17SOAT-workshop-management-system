@@ -162,7 +162,9 @@ onde custam zero.
 ## Approval Checklist
 
 - [x] Estratégia "local primeiro, AWS depois" aprovada por Santiago Silvestre em 2026-10-14.
-- [ ] Restrições do Learner Lab confirmadas antes do provisionamento na AWS.
+- [x] Restrições do Learner Lab confirmadas antes do provisionamento na AWS (Santiago Silvestre, 2026-10-24, no
+      CloudShell: `us-east-1`, `LabRole`, `t3.medium`, NAT, S3, EKS 1.34–1.37, RDS MySQL 8.4 `db.t3.micro`; sessão de
+      4 h, US$ 50 de crédito). Evidências no CP8 do plano da infra.
 
 ---
 
