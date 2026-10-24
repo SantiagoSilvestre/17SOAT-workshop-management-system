@@ -61,3 +61,5 @@ crash.*.log
 kubeconfig*
 # Input of the Kustomize secretGenerator; only secrets.env.example is versioned.
 k8s/overlays/*/secrets.env
+# Developer public IP for the AWS load balancer; only allowed-cidr.yaml.example is versioned.
+k8s/overlays/aws/allowed-cidr.yaml
