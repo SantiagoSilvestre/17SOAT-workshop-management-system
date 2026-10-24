@@ -528,6 +528,14 @@ mesma collection na linha de comando (`make e2e`), o que a transforma em smoke t
 test-drive escrito, que qualquer mecânico repete igual. Ver
 [a collection](../api/postman/workshop-management-system.postman_collection.json).
 
+### Environment do Postman e precedência de variáveis
+
+Um environment é um conjunto nomeado de variáveis ("Local", "AWS") que se troca num seletor. Quando o mesmo nome
+existe nos dois lugares, o valor do **environment vence** o da collection. Assim, a mesma collection aponta para
+`localhost:8080` ou para o Load Balancer da AWS sem editar nenhuma request. Analogia: o mesmo roteiro de test-drive,
+feito em outra filial. Na AWS o banco começa vazio (sem seed), então os IDs fixos da collection não existem lá e
+precisam ser criados pelas requests `Create ...`.
+
 ## CI/CD
 
 ### CI x CD
@@ -646,3 +654,104 @@ do pátio. Planejado na [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-lo
 Banco de dados gerenciado pela AWS (aqui, MySQL), com backup e manutenção feitos por ela. Analogia: arquivo de fichas
 mantido por uma empresa especializada. Planejado na
 [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md).
+
+### Região e zona de disponibilidade (AZ)
+
+Região é um conjunto de datacenters em um lugar do mundo (o Learner Lab usa `us-east-1`, Virgínia); cada AZ é um
+prédio separado dentro dela, com energia e rede próprias. Recursos espalhados por 2 AZs sobrevivem à queda de uma.
+Analogia: a rede de oficinas numa cidade (região) com filiais em bairros diferentes (AZs).
+
+### Credenciais temporárias (STS)
+
+O STS emite um "crachá de visitante" (access key, secret e **session token**) válido por poucas horas, ao assumir uma
+role. O Learner Lab só dá esse tipo, por isso os valores mudam a cada Start Lab e precisam ser atualizados no
+environment do GitHub. `aws sts get-caller-identity` mostra qual crachá está em uso (`assumed-role/voclabs/...` no lab).
+
+### CloudShell
+
+Terminal Linux dentro do console da AWS, com o `aws` CLI já logado com as credenciais da sessão: testa permissões sem
+copiar chaves para o PC. Não confundir com o terminal da página do Learner Lab (role `runserver`, quase sem
+permissões). Analogia: o computador do balcão, já logado no sistema da oficina.
+
+### `--dry-run` (AWS CLI)
+
+Pergunta "eu poderia fazer isso?" sem executar nem cobrar: `DryRunOperation` = permitido, `UnauthorizedOperation` =
+bloqueado pela política. Usado na confirmação do Learner Lab (CP8 do
+[plano da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md)). Analogia: pedir o
+orçamento sem autorizar o serviço.
+
+### VPC
+
+Rede privada na AWS, com uma faixa de endereços própria (`10.0.0.0/16`); nada entra ou sai sem um caminho criado.
+Analogia: o terreno murado da oficina. No kind, o papel era da rede do Docker. Ver
+[`infra/aws/cluster/main.tf`](../../infra/aws/cluster/main.tf).
+
+### Subnet pública x privada e route table
+
+Subnet é um pedaço da VPC em uma AZ; a route table diz para onde vai o tráfego. Pública: rota para a internet pelo
+IGW (load balancer, NAT). Privada: saída só pelo NAT (nodes, RDS). Analogia: recepção que dá para a rua x pátio e
+almoxarifado. EKS e RDS exigem subnets em 2 AZs.
+
+### Security Group
+
+Firewall preso a cada recurso: "quem pode entrar, por qual porta". O do RDS libera 3306 só para o security group dos
+nodes do EKS, não para um IP. Analogia: o porteiro do almoxarifado que só deixa entrar quem tem crachá de mecânico.
+Ver [`infra/aws/database/main.tf`](../../infra/aws/database/main.tf).
+
+### Node group gerenciado
+
+Grupo de EC2 que a AWS cria e mantém como nodes do EKS (aqui, 2 `t3.medium` com a LabRole). As máquinas somem quando
+a sessão do lab acaba; o control plane continua. Analogia: a equipe de mecânicos da terceirizada que gerencia o pátio.
+
+### State remoto (backend S3) e `use_lockfile`
+
+O state vai para um bucket S3, para que o PC e a pipeline usem o mesmo e para que ele não se perca (state perdido =
+recursos órfãos cobrando). `use_lockfile` grava um `.tflock` durante o `apply` e recusa um segundo `apply`
+simultâneo. O bucket é criado pelo AWS CLI ([`infra/aws/bootstrap/README.md`](../../infra/aws/bootstrap/README.md)),
+porque a SCP do lab impede o Terraform de gerenciá-lo (ovo e galinha resolvido fora do Terraform). Analogia: o livro de OS
+sai da gaveta do mecânico e vai para o arquivo central, com "em uso por..." na capa.
+
+### `terraform_remote_state`
+
+Lê as saídas de outra stack direto do state remoto: a `database` pega VPC, subnets e o security group dos nodes da
+`cluster`, sem copiar IDs à mão. Também força a ordem `cluster` → `database`.
+
+### EKS access entry
+
+Define quem pode usar o `kubectl` no cluster. Com `bootstrap_cluster_creator_admin_permissions`, quem criou o
+cluster (a role `voclabs` do lab) vira admin; a pipeline, com credenciais da mesma role, herda o acesso.
+
+### SCP (Service Control Policy)
+
+Política da *organização* dona da conta (aqui, a AWS Academy), aplicada acima de qualquer permissão da role. Um
+`explicit deny` numa SCP vence qualquer `allow` da LabRole e não tem contorno no nosso código. Foi o que barrou o
+`aws_s3_bucket` (leitura do Object Lock negada). Analogia: o crachá do mecânico (role) permite, mas o regulamento do
+shopping onde fica a oficina (SCP) proíbe. Ver [`infra/aws/bootstrap/README.md`](../../infra/aws/bootstrap/README.md).
+
+### `tainted` (Terraform)
+
+Recurso marcado no state como "criado, mas não confiável", geralmente porque o `apply` falhou no meio. No próximo
+`apply`, o Terraform o destrói e recria. Analogia: peça montada, mas reprovada na inspeção; volta para a bancada.
+
+### Service `LoadBalancer`
+
+Tipo de Service que pede à nuvem um balanceador de verdade nas subnets públicas, com um hostname
+`*.elb.amazonaws.com`, que repassa o tráfego aos pods prontos nas subnets privadas. Substitui o `NodePort` do kind.
+Analogia: a recepção na rua que encaminha cada cliente a um mecânico livre no pátio fechado. Ver
+[`k8s/overlays/aws/kustomization.yaml`](../../k8s/overlays/aws/kustomization.yaml).
+
+### `loadBalancerSourceRanges` e *fail-safe*
+
+É a lista de IPs que o Load Balancer aceita (vira regra de Security Group); `/32` corresponde a exatamente um
+endereço. Protege o admin de bootstrap com senha conhecida. O IP fica num arquivo ignorado pelo git, e sem esse arquivo
+o deploy **falha** em vez de abrir para o mundo. Isso é *fail-safe*: na dúvida, falha fechado. Analogia: sem a lista
+de clientes autorizados, a recepção não abre a porta.
+
+### Ordem de destroy e recurso órfão
+
+O Terraform só apaga o que ele mesmo criou e anotou no state. O Load Balancer da API foi criado pelo **Kubernetes**
+(Service `LoadBalancer`), não pelo Terraform, e vive dentro da VPC. Se o cluster for destruído primeiro, ninguém mais
+apaga esse LB: ele vira um **recurso órfão**, continua cobrando e trava a remoção da VPC e das subnets. Por isso a
+ordem é inversa à da criação: app (`kubectl delete`, que faz o Kubernetes apagar o LB) → `database` → `cluster`.
+Analogia: antes de devolver o galpão alugado, desmonte a recepção que você montou por conta própria; o dono só leva o
+que está no contrato. Ver [`infra/aws/bootstrap/README.md`](../../infra/aws/bootstrap/README.md).
