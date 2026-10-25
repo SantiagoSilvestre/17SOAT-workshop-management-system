@@ -286,11 +286,16 @@ a 5 acima, e por fim `docs(platform): document local kubernetes environment and 
 
 ### CP8 — AWS Academy (passo 11, previsto 23–24/10; data-limite 24/10, 23h)
 
+**Status: Completed (2026-10-25): ambiente provisionado, usado e destruído em 2026-10-24; documentação em 2026-10-25.
+A busca nos logs do run `40149256673` achou dados pessoais (IP e e-mail) no log público; corrigido em 2026-10-25,
+falta o run de confirmação. O risco residual do admin de bootstrap foi aceito por Santiago Silvestre em 2026-10-25,
+só para o AWS Academy.**
+
 - [x] **Antes de qualquer código:** confirmar região, `LabRole`, tipos de instância, disponibilidade de EKS/NAT e
       duração da sessão; marcar o item pendente da ADR-008. Se o desenho mudar, a technical-spec volta a `Draft`.
       Confirmado em 2026-10-24: o desenho da technical-spec se mantém (evidências abaixo).
-- [ ] `infra/aws/bootstrap`, `infra/aws/cluster` e `infra/aws/database`, conforme a technical-spec. Código escrito e
-      validado em 2026-10-24 (falta o `apply`). Detalhes: EKS `1.35` (mesma versão do kind) com
+- [x] `infra/aws/bootstrap`, `infra/aws/cluster` e `infra/aws/database`, conforme a technical-spec. Código escrito e
+      validado em 2026-10-24; `apply` e `destroy` das duas stacks no mesmo dia (`f386891`). Detalhes: EKS `1.35` (mesma versão do kind) com
       `upgrade_policy STANDARD` (evita o suporte estendido, 6× mais caro); acesso ao cluster por access entry do
       criador (`authentication_mode = "API"`); backend S3 com o bucket por `-backend-config` (nome com sufixo
       aleatório); JDBC com `sslMode=REQUIRED` no RDS; `backup_retention_period = 0`.
@@ -302,8 +307,8 @@ a 5 acima, e por fim `docs(platform): document local kubernetes environment and 
       faz essa leitura. O desenho da spec se mantém (bucket com versionamento, criptografia `AES256` e bloqueio
       público; backend S3 com `use_lockfile`). O bucket já criado (`workshop-tfstate-dc4ef3e2`) foi reaproveitado
       e o state local da stack foi descartado. A remoção do bucket passa a ser feita pelo console (Empty + Delete).
-- [ ] `k8s/overlays/aws`: LoadBalancer com `loadBalancerSourceRanges`, HPA 2–4, sem seeds. Escrito em 2026-10-24
-      (falta aplicar no EKS): imagem `ghcr.io/santiagosilvestre/workshop-management-system:<sha>`, cujo pull anônimo
+- [x] `k8s/overlays/aws`: LoadBalancer com `loadBalancerSourceRanges`, HPA 2–4, sem seeds. Escrito e aplicado no EKS
+      em 2026-10-24 (`ba3f8d7`): imagem `ghcr.io/santiagosilvestre/workshop-management-system:<sha>`, cujo pull anônimo
       do SHA `37bd708` retorna `200`; perfil `default` e seeds desligados herdados da base, sem merge; HPA 2–4 com
       descida em 120 s. O IP liberado fica em `allowed-cidr.yaml`, ignorado pelo git, com um `.example` versionado;
       sem o arquivo, o `kustomize build` falha (*fail-safe*: nunca abre o admin de bootstrap para `0.0.0.0/0`).
@@ -336,13 +341,42 @@ a 5 acima, e por fim `docs(platform): document local kubernetes environment and 
         describe-load-balancers` → `[]` antes do Terraform (o LB é criado pelo Kubernetes, não pelo Terraform, e
         ficaria órfão). `database` → `8 destroyed` (RDS em 1m52s); `cluster` → `17 destroyed` (node group 8m17s,
         EKS 2m56s, NAT 52s), sem `DependencyViolation`.
-- [ ] Environment `aws-academy` e `.github/workflows/cd-aws.yml` (`workflow_dispatch`).
-- [ ] Apresentar e registrar a estimativa de crédito por hora **antes** do primeiro `apply`.
-- [ ] README: renovação de credenciais por sessão, ordem de `apply`/`destroy` e lista de recursos.
+- [x] Environment `aws-academy` e `.github/workflows/cd-aws.yml` (`workflow_dispatch`), em 2026-10-24 (`0e01b18`,
+      correção `bf3c199`). O workflow faz o deploy do banco (`infra/aws/database`), gera o `secrets.env` a partir do
+      environment, aplica o overlay com a imagem do SHA e faz o smoke test **pelo load balancer**. O IP do runner é
+      liberado só durante o smoke test e revogado num step `always()`, conferido sem imprimir o IP. O cluster fica
+      fora do workflow, como na technical-spec (D12): leva 15–20 min e cobra por hora, então quem o liga é a pessoa,
+      não um disparo da pipeline. A branch
+      padrão do fork passou a ser `feat/terraform-san`, porque o GitHub só lista `workflow_dispatch` da branch padrão.
+      Runs:
+      - `40144883328` e `40145730363` → falha em `Validate inputs` (variable `AWS_ALLOWED_CIDR` mal formatada): o
+        *fail-safe* do `/32` funcionou.
+      - `40145796420` → falha em `Check AWS credentials` (`NoCredentials`, exit 253), sem tocar em nenhum recurso:
+        critério "credencial expirada → falha em `sts`".
+      - `40149256673` (`bf3c199`) → **verde em 7m11s**: banco 5m19s, aplicação 8 s, smoke test pelo LB 85 s, revoke
+        2 s, `Diagnostics` *skipped* (a correção de `bf3c199` funcionou).
+      **Desvio de implementação (2026-10-25):** a technical-spec lista `AWS_ALLOWED_CIDR` como *variable* do
+      environment; ele passou a ser *secret*. Motivo: o GitHub imprime os valores de `env:` no topo de cada step e só
+      mascara *secrets*, então o IP do desenvolvedor apareceu nos logs públicos dos 4 runs. No mesmo ajuste, o
+      `aws sts get-caller-identity` passou a descartar a saída (o ARN da sessão do lab traz o número da conta e o
+      e-mail do aluno). O comportamento do workflow não muda; detalhes na revisão de segurança.
+- [x] Apresentar e registrar a estimativa de crédito por hora **antes** do primeiro `apply`: ≈ **US$ 0,29/h** ligado
+      (control plane EKS 0,100; 2 × `t3.medium` 0,083; NAT 0,045; CLB 0,025; RDS 0,017; 3 IPv4 0,015; EBS 0,008) e
+      ≈ US$ 0,20/h com a sessão expirada (os nodes somem). Apresentada em 2026-10-24, antes do `apply` do cluster;
+      tabela em `docs/setup/aws-academy.md`.
+- [x] README: renovação de credenciais por sessão, ordem de `apply`/`destroy` e lista de recursos. Em 2026-10-25
+      (`ba42e95`): guia `docs/setup/aws-academy.md`, diagrama da infra AWS e das pipelines no `overview.md` (§4.2 e
+      §4.3), seção do `cd-aws.yml` no `ci-cd.md`, README e índice sem "planejado". Link checker sem links quebrados;
+      diagramas renderizados no `mermaid-cli` 11.4.2.
 
 Verificação: `apply` das três stacks; workflow AWS verde; API responde pelo hostname do load balancer apenas a partir
 do IP liberado; HPA escala com k6; credencial expirada → falha em `aws sts get-caller-identity`; `destroy`
 (database → cluster) e conferência no console de que não sobrou EKS, NAT, ELB, RDS nem EIP.
+
+Resultado da verificação (2026-10-24): `apply` de `cluster` e `database` ✅ (o `bootstrap` virou passo de AWS CLI,
+ver desvio acima); workflow AWS verde ✅ (`40149256673`); API pelo LB a partir do IP liberado e timeout a partir do
+CloudShell ✅; HPA 2 → 4 → 2 com k6 ✅; credencial inválida → falha em `sts` ✅ (`40145796420`); destroy e conferência
+com `[]` em EKS, RDS, NAT, EIP, EC2 e ELB ✅.
 
 Commit sugerido: `feat(platform): provision aws eks and rds with terraform and add aws deploy workflow`
 
@@ -359,14 +393,15 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 |---|---|---|---|---|
 | Validação de entrada / mass assignment | Nenhum endpoint de negócio muda | N/A | — | N/A |
 | Autenticação e autorização | Health sem token, só `GET` em três caminhos | Baixa | sem detalhes/componentes; `POST` → 401; `/actuator/env` e `/beans` → 401 sem token e 404 com ADMIN (`HealthEndpointTest`; `curl` manual → 401) | Resolvido (CP2) |
-| Exposição de dados | Admin de bootstrap `admin/changeme123` exposto por endpoint público na AWS | **Alta** | `loadBalancerSourceRanges` com o IP do desenvolvedor e `destroy` após cada uso | Pendente (CP8) |
-| Segredos e logs | Secrets por environment; `secrets.env` não versionado; token mascarado | Média | `.gitignore` (CP3), `umask 077`, `::add-mask::`, revisão dos logs; CP6: secrets só no job `deploy-kind` (`environment: kind-ci`), entregues por `env:`, sem `set -x`; busca nos logs do run `39360660986` sem nenhum valor exposto | Resolvido para `kind-ci` (CP6); AWS no CP8 |
-| Persistência e migrations | Nenhuma migration nova; state com senha do banco | Média | state local fora do git; S3 criptografado e privado | Pendente |
+| Exposição de dados | Admin de bootstrap `admin/changeme123` exposto por endpoint público na AWS | **Alta** | `loadBalancerSourceRanges` com o IP do desenvolvedor e `destroy` após cada uso. CP8: o IP vem de um arquivo ignorado pelo git e, sem ele, o `kustomize build` falha (nunca `0.0.0.0/0`); o `cd-aws.yml` recusa qualquer valor que não seja um único `/32`, libera o IP do runner só durante o smoke test e o revoga num step `always()`. Provas: `curl` do CloudShell (fora do `/32`) → timeout 2×; runs `40144883328`/`40145730363` barrados em `Validate inputs`; destroy conferido. Risco residual: a senha conhecida continua valendo enquanto o ambiente existe, para quem estiver no IP liberado. Pontos considerados no aceite: (1) o `/32` cobre todos os aparelhos atrás do roteador e, com CGNAT da operadora, outros clientes que dividem o mesmo IP público; (2) sem HTTPS (fora de escopo), senha e JWT trafegam em texto puro; (3) o ADMIN lê e altera todos os dados e cria usuários (`POST /api/auth/users`), um acesso que sobrevive à troca da senha; (4) a janela depende de executar o destroy. Limitam o impacto: banco da AWS sem seeds e só com dados fictícios, admin da aplicação sem acesso à conta AWS, custo limitado pelos nodes fixos (HPA no máximo 4 pods). Alternativas descartadas por prazo: `UPDATE` manual do hash no RDS a cada deploy; senha por variável de ambiente ou troca obrigatória no primeiro login (exige reabrir a spec). Registrado também no TD-003, Grupo 4 | Mitigado (CP8). **Risco residual aceito por Santiago Silvestre em 2026-10-25**, válido **só** para o AWS Academy (ambiente descartável, sem dados reais e destruído após cada uso); não vale como precedente para qualquer ambiente com dados reais |
+| Segredos e logs | Secrets por environment; `secrets.env` não versionado; token mascarado | Média | `.gitignore` (CP3), `umask 077`, `::add-mask::`, revisão dos logs; CP6: secrets só no job `deploy-kind` (`environment: kind-ci`), entregues por `env:`, sem `set -x`; busca nos logs do run `39360660986` sem nenhum valor exposto. CP8: environment `aws-academy` com credenciais do lab e segredos da app como *secrets* e só o necessário como *variables*; `secrets.env` com `umask 077`; token do smoke test mascarado; o IP do desenvolvedor é comparado, nunca impresso; ARN com o número da conta cortado na edição do vídeo | Resolvido para `kind-ci` (CP6) e para os segredos da AWS (CP8): busca no zip de logs do run `40149256673` com 38 valores como `***`, nenhuma chave `ASIA`/`AKIA`, nenhum token `eyJ`, valores sensíveis do Terraform como `(sensitive value)` |
+| Dados pessoais em log público | A mesma busca encontrou, em texto puro, o IP do desenvolvedor (`AWS_ALLOWED_CIDR` era *variable*, impressa no cabeçalho `env:` de cada step) e o ARN da sessão com o número da conta e o e-mail do aluno (saída do `sts get-caller-identity`). O fork é público: qualquer pessoa logada no GitHub lê os logs | Média | `AWS_ALLOWED_CIDR` virou *secret* do environment (Santiago, 2026-10-25) e o workflow lê `secrets.AWS_ALLOWED_CIDR`; o `sts get-caller-identity` descarta a saída; logs dos 4 runs do CD AWS apagados no GitHub (Santiago, 2026-10-25; a conclusão de cada run continua visível); `ci-cd.md` corrigido (afirmava que o valor precisava ser *variable*). Continuam no log, aceitos: nome do bucket, endpoint do RDS e hostname do LB (recursos já destruídos) e o `changeme123` no texto do script (já público na migration) | Corrigido; **falta o run de confirmação** (CD AWS sem sessão do lab → falha em `Check AWS credentials`, com o CIDR como `***` e sem ARN no log) |
+| Persistência e migrations | Nenhuma migration nova; state com senha do banco | Média | state local fora do git (CP3); AWS: backend S3 com `encrypt = true` e `use_lockfile`, bucket privado, criptografado e com versionamento (`infra/aws/bootstrap/README.md`); senhas geradas por `random_password`, nunca no `plan` | Resolvido: local (CP3) e AWS (CP8, conferido em 2026-10-25: `AES256`, bloqueio público com os 4 valores `true`, versionamento `Enabled`) |
 | Respostas de erro | Health não expõe detalhes | Baixa | `show-details`/`show-components=never` em `actuator.properties`, importado também pelos testes; banco fora → só `{"status":"DOWN"}` | Resolvido (CP2) |
 | Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
 | Abuso de endpoints | Health pode ser chamado em massa | Baixa | resposta barata; sem cache; fora de escopo limitar taxa | Pendente |
 | Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` do app: `runAsNonRoot`/`runAsUser: 1000`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem` (só `/tmp` em `emptyDir` de 256 Mi), `drop: [ALL]`, `seccomp RuntimeDefault`, `automountServiceAccountToken: false`; o app subiu sem `Read-only file system`. Mailpit/WireMock (imagens de terceiros): `allowPrivilegeEscalation: false` + seccomp, sem token | Resolvido (CP5) |
-| Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, considerar `kubectl apply --server-side`, que não grava essa anotação | Aceito (local); revisar no CP8 |
+| Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, `kubectl apply --server-side` (manual e no `cd-aws.yml`), que não grava essa anotação | Aceito (local); resolvido na AWS (CP8) |
 | `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
 | Credenciais do kind no plano | O provider `tehcyx/kind` não marca `client_key`/`kubeconfig` como sensíveis: `plan`/`destroy` imprimem a chave privada de admin do cluster (observado no CP4) | Baixa | API server só em `127.0.0.1`, cluster descartável (a chave morre no `destroy`); kubeconfig fora do repositório; não colar saídas de `destroy` em canais públicos; no CP6, o cluster vive só no runner efêmero, mas os logs do job ficam visíveis no fork: revisar se o `plan`/`destroy` do kind deve rodar com saída filtrada. CP6: a pipeline só faz `apply` sobre state vazio (atributos `(known after apply)`) e nunca `destroy` (o runner é descartado); busca nos logs do run `39360660986` sem `PRIVATE KEY`/`client-key-data`, então nenhum filtro é necessário | Aceito (local); resolvido na pipeline (CP6) |
 | App como usuário master do RDS | Na AWS, o app conecta com o usuário master (`workshop_user`), que tem privilégios administrativos no MySQL; no local ele não é root | Média | RDS sem acesso público, porta 3306 só a partir do security group dos nodes, senha gerada (`random_password`) e entregue por Secret, ambiente destruído após cada uso. Criar um usuário de menor privilégio exigiria conexão do Terraform às subnets privadas (fora do escopo do lab) | Aceito (CP8) |
@@ -422,6 +457,10 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP8 | `terraform fmt -check -recursive infra` → exit 0; `init -backend=false` + `validate` em `infra/aws/{bootstrap,cluster,database}` → `Success! The configuration is valid.`; lock files com `windows_amd64` + `linux_amd64` (`aws 6.69.1`, `kubernetes 3.3.0`, `random 3.9.1`) | 2026-10-24 |
 | CP8 | HPA no EKS com k6: 2 → 4 réplicas a 118%/70%, 4887 req, 0,00% de falhas, p95 366,97 ms; descida para 2 em ~2 min | 2026-10-24 |
 | CP8 | Destroy: app (`kubectl delete -k`, LB `[]` em `elb`/`elbv2`) → `database` `8 destroyed` → `cluster` `17 destroyed`. Conferência por AWS CLI: `eks list-clusters`, `rds describe-db-instances`, `ec2 describe-nat-gateways` (pending/available), `ec2 describe-addresses`, `ec2 describe-instances` (pending/running) e `elb describe-load-balancers` → `[]` em todos; contexto do EKS removido do kubeconfig e planos `*.tfplan` apagados. Mantido de propósito: bucket do state `workshop-tfstate-dc4ef3e2` | 2026-10-24 |
+| CP8 | CD AWS: [`40145796420`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/40145796420) falhou em `Check AWS credentials` (`NoCredentials`, exit 253); [`40149256673`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/40149256673) (`bf3c199`) verde em 7m11s, smoke test pelo LB em 85 s, revoke do IP do runner em 2 s | 2026-10-24 |
+| CP8 | Bucket do state `workshop-tfstate-dc4ef3e2` (Santiago, AWS CLI): `get-bucket-encryption` → `SSEAlgorithm: AES256` (e `SSE-C` bloqueado); `get-public-access-block` → `BlockPublicAcls`, `IgnorePublicAcls`, `BlockPublicPolicy` e `RestrictPublicBuckets` = `true`; `get-bucket-versioning` → `Enabled` | 2026-10-25 |
+| CP8 | Logs do run `40149256673` (zip baixado pelo Santiago, busca com `grep`): segredos como `***` (38), nenhum `ASIA`/`AKIA`/`eyJ`, Terraform com `(sensitive value)`; **achado**: IP do `AWS_ALLOWED_CIDR` no cabeçalho `env:` de cada step e e-mail + conta no ARN do `sts get-caller-identity`. Fork confirmado público pela API. Logs dos 4 runs apagados e `AWS_ALLOWED_CIDR` migrado para *secret* pelo Santiago | 2026-10-25 |
+| CP8 | Documentação (`ba42e95`): `markdown-link-check@3.13.7` em README, `docs/README.md`, `aws-academy.md`, `ci-cd.md`, `overview.md` e glossário → 0 links quebrados; diagramas novos renderizados no `mermaid-cli` 11.4.2; README com 110 linhas | 2026-10-25 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
 
 ## Rollback ou recuperação

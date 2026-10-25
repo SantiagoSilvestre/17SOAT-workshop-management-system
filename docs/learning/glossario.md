@@ -29,6 +29,14 @@ descreve o defeito e o resultado esperado antes de o mecânico escolher as ferra
 Frase verificável de forma independente que diz quando um comportamento está pronto ("sem carga, as cópias voltam ao
 mínimo"). Se não dá para testar, não é critério de aceite. Analogia: o checklist de entrega do veículo.
 
+### Mitigação e risco residual
+
+**Mitigar** é reduzir a chance ou o impacto de um risco sem eliminá-lo; o que sobra é o **risco residual**, que alguém
+com autoridade precisa **aceitar** por escrito (o agente nunca aceita no lugar da pessoa). Analogia: o carro com
+freio gasto sai com aviso na OS e a assinatura do cliente, porque a peça ainda não chegou. Exemplo: o admin de
+bootstrap na AWS, restrito a um `/32` e destruído após o uso, na
+[revisão de segurança da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md#revisão-de-segurança).
+
 ### Modelo C4 e diagrama de implantação
 
 O C4 desenha um sistema em níveis de zoom: contexto (quem usa), containers (quais processos rodam), componentes (como
@@ -599,6 +607,15 @@ chain*), o commit não. Analogia: pedir a peça pelo número de série, não "a 
 O GitHub procura o **texto exato** de cada secret no log e o troca por `***`; `::add-mask::` estende isso a valores
 criados no job (o token do smoke test). Não é criptografia: imprimir o secret em base64 ou invertido vaza. A barreira
 real é quem pode fazer push no repositório.
+
+### *Variable* x *secret* no log
+
+As duas chegam ao job do mesmo jeito e podem ser validadas igual; a diferença é o **log**. O GitHub imprime os
+valores de `env:` no topo de cada step: *secrets* aparecem como `***`, *variables* aparecem como são. Regra: *variable*
+só para o que poderia estar no README (região, nome do bucket); IP, e-mail e o que identifica uma pessoa vai em
+*secret*. Analogia: na ficha da OS que fica no balcão, o que é sigiloso vai tarjado. Lição real: o IP do
+`AWS_ALLOWED_CIDR` vazou no log público do fork enquanto era *variable* (ver
+[`cd-aws.yml`](../../.github/workflows/cd-aws.yml)).
 
 ### Fork
 
