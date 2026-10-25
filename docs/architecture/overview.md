@@ -147,31 +147,96 @@ flowchart LR
     kustomize -.->|"cria"| appk
 ```
 
-### 4.2 Pipeline de entrega
+### 4.2 AWS Academy (EKS + RDS)
 
-A cada push na branch de entrega, a pipeline publica a imagem e a testa num cluster kind criado e descartado dentro
-do próprio runner.
+Infraestrutura provisionada na região `us-east-1` do Learner Lab. O Terraform cria a rede e o cluster
+(`infra/aws/cluster`, 17 recursos) e depois o banco e os objetos de conexão (`infra/aws/database`, 8 recursos), com o
+state num bucket S3. O Kustomize (`k8s/overlays/aws`) cria a aplicação; o load balancer é criado pela AWS a partir do
+Service `LoadBalancer`. Recursos, comandos e custo: [Ambiente AWS Academy](../setup/aws-academy.md).
+
+```mermaid
+flowchart TB
+    user(["Postman / k6<br/>(só o IP liberado, /32)"])
+    ghcr[("GHCR<br/>imagem :sha")]
+    tf["Terraform<br/>infra/aws/cluster + database"]
+
+    subgraph managed["Serviços gerenciados da AWS (fora da VPC)"]
+        eksapi["Control plane do EKS<br/>Kubernetes 1.35"]
+        s3[("S3<br/>state do Terraform")]
+    end
+
+    subgraph vpc["VPC 10.0.0.0/16 · us-east-1a e us-east-1b"]
+        igw["Internet Gateway"]
+        subgraph pub["Subnets públicas"]
+            lb["Load Balancer<br/>loadBalancerSourceRanges"]
+            nat["NAT Gateway<br/>+ Elastic IP"]
+        end
+        subgraph priv["Subnets privadas"]
+            subgraph nodes["Node group: 2 × t3.medium (1 por AZ)"]
+                app["workshop-app<br/>HPA 2 a 4 pods"]
+                side["Mailpit + Supplier simulator"]
+                metrics["metrics-server<br/>(add-on)"]
+            end
+            rds[("RDS MySQL 8.4<br/>db.t3.micro")]
+        end
+    end
+
+    user -->|"HTTP :80"| igw --> lb -->|"pods prontos"| app
+    app -->|"3306, só do SG dos nodes<br/>sslMode=REQUIRED"| rds
+    app --> side
+    metrics -.->|"uso de CPU"| app
+    nat -->|"saída"| igw
+    ghcr -->|"pull :sha"| nat
+    nat -.->|"imagem para os nodes"| app
+    eksapi -.->|"gerencia"| nodes
+    tf -.->|"cria"| vpc
+    tf -.->|"cria e guarda o state"| managed
+```
+
+Escolhas que o diagrama mostra:
+
+- **Nodes e RDS nas subnets privadas:** não têm IP público. Os nodes saem para a internet (imagem no GHCR) pela NAT; o
+  RDS só aceita a porta 3306 vinda do security group dos nodes.
+- **Um único NAT** (em us-east-1a) para economizar crédito; se essa AZ cair, os nodes perdem a saída para a internet.
+  Aceito num ambiente descartável.
+- **Load balancer restrito a um `/32`:** a conta `admin` de bootstrap existe em todos os ambientes, então a API não fica
+  aberta para a internet inteira.
+- **Nodes fixos, pods elásticos:** o HPA escala os pods entre 2 e 4; os 2 nodes não escalam (fora de escopo).
+- **Sem roles novas de IAM:** o cluster e os nodes usam a `LabRole` fornecida pelo lab.
+
+### 4.3 Pipelines de entrega
+
+O `cd.yml` roda a cada push na branch de entrega: publica a imagem e a testa num cluster kind criado e descartado
+dentro do próprio runner. O `cd-aws.yml` é disparado manualmente, com o cluster EKS já criado: implanta no EKS a
+imagem publicada pelo `cd.yml`. Detalhes em [CI/CD](../operations/ci-cd.md).
 
 ```mermaid
 flowchart LR
     dev(["Desenvolvedor"]) -->|"git push"| build
-    subgraph cd["GitHub Actions: cd.yml"]
+    subgraph cd["GitHub Actions: cd.yml (push)"]
         build["build-test<br/>mvnw clean verify"] --> image["image<br/>docker build"]
         image --> deploy["deploy-kind<br/>Terraform + Kustomize<br/>+ smoke test"]
     end
     image -->|"push :sha"| ghcr[("GHCR")]
     ghcr -->|"pull :sha"| deploy
-    ghcr -.->|"planejado"| aws["AWS Academy<br/>EKS + RDS"]
+
+    dev -->|"Run workflow"| awsdb
+    subgraph cdaws["GitHub Actions: cd-aws.yml (manual)"]
+        awsdb["Terraform<br/>infra/aws/database"] --> awsapp["Kustomize<br/>k8s/overlays/aws"]
+        awsapp --> awssmoke["smoke test<br/>pelo load balancer"]
+    end
+    ghcr -->|"pull :sha"| awsapp
+    awsapp --> eks["EKS + RDS"]
 ```
 
-### 4.3 Ambientes
+### 4.4 Ambientes
 
 | Ambiente | Para que serve | Como sobe | Guia |
 | --- | --- | --- | --- |
 | Docker Compose | Desenvolvimento do dia a dia | `docker compose up -d --build` | [Execução local com Docker Compose](../setup/local-docker-compose.md) |
 | kind (local) | Reproduzir o Kubernetes no PC: probes, rolling update, HPA | Terraform (cluster e banco) + Kustomize | [Ambiente Kubernetes local](../setup/local-kubernetes.md) |
 | kind (pipeline) | Provar a cada push que a imagem sobe e responde | `cd.yml`, num cluster criado e descartado no runner | [CI/CD](../operations/ci-cd.md) |
-| AWS Academy | Ambiente em nuvem (EKS + RDS) | Planejado | [ADR-008](../adr/ADR-008-estrategia-de-ambientes-kind-local-e-aws.md) |
+| AWS Academy | Ambiente em nuvem (EKS + RDS), acessível pela internet a partir de um IP liberado | Terraform (rede, cluster e banco) + Kustomize ou `cd-aws.yml` | [Ambiente AWS Academy](../setup/aws-academy.md) |
 
 Decisões que valem para todos os ambientes:
 
@@ -179,7 +244,8 @@ Decisões que valem para todos os ambientes:
   muda é o overlay do Kustomize e as variáveis de ambiente.
 - **Dono único de cada recurso:** o Terraform cria o cluster, o namespace e o banco; o Kustomize cria só os recursos
   da aplicação. Assim, um `kubectl delete -k` nunca apaga o banco.
-- **Escala horizontal:** o HPA ajusta o número de pods pela CPU, com o metrics-server como fonte das métricas.
+- **Escala horizontal:** o HPA ajusta o número de pods pela CPU, com o metrics-server como fonte das métricas (1 a 3
+  pods no kind, 2 a 4 na AWS).
 
 ## Para aprofundar
 

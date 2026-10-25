@@ -29,6 +29,30 @@ descreve o defeito e o resultado esperado antes de o mecânico escolher as ferra
 Frase verificável de forma independente que diz quando um comportamento está pronto ("sem carga, as cópias voltam ao
 mínimo"). Se não dá para testar, não é critério de aceite. Analogia: o checklist de entrega do veículo.
 
+### Modelo C4 e diagrama de implantação
+
+O C4 desenha um sistema em níveis de zoom: contexto (quem usa), containers (quais processos rodam), componentes (como
+um processo se divide) e código. O **diagrama de implantação** complementa esses níveis e mostra **onde** cada
+processo roda: rede, máquinas, serviços gerenciados e por onde o tráfego passa. Analogia: a planta da oficina mostra
+as seções; a planta de instalação mostra em qual elevador cada carro fica e por qual portão ele entra. Usado no
+[overview, seção 4](../architecture/overview.md#4-implantação), inclusive na infraestrutura da AWS (4.2).
+
+### Diátaxis (tutorial, how-to, referência, explicação)
+
+Forma de dividir a documentação pelo que o leitor quer fazer: **tutorial** (aprender seguindo passos, como o
+[guia da AWS](../setup/aws-academy.md)), **how-to** (resolver uma tarefa, como o
+[teste de carga](../operations/load-testing-hpa.md)), **referência** (consultar fatos, como o
+[CI/CD](../operations/ci-cd.md)) e **explicação** (entender o porquê, como o overview). Analogia: o curso de formação
+do mecânico, a ficha de procedimento, o catálogo de peças e a aula teórica são documentos diferentes. A coluna "Tipo"
+do [índice](../README.md) segue essa divisão.
+
+### Fonte única da verdade
+
+Cada fato vive em **um** documento; os outros apontam para ele em vez de copiar. Cópias envelhecem em ritmos
+diferentes (foi assim que o `Architecture.md` ficou desatualizado). Analogia: o preço da peça fica só no cadastro do
+estoque; o orçamento consulta, não copia à mão. Por isso o README só aponta para o
+[guia da AWS](../setup/aws-academy.md), que é quem lista os recursos criados.
+
 ## Containers
 
 ### Container x VM
@@ -584,7 +608,22 @@ exigem ser admin; a imagem vai para `ghcr.io/<usuario>/...` sem afetar os colega
 ### `concurrency`
 
 Agrupa execuções (aqui, por workflow + branch); com `cancel-in-progress`, um push novo cancela a execução anterior.
-Cada execução tem o próprio cluster, então não se perde nada.
+Cada execução tem o próprio cluster, então não se perde nada. No
+[`cd-aws.yml`](../../.github/workflows/cd-aws.yml) é o contrário (`cancel-in-progress: false`): cancelar um
+`terraform apply` no meio deixa o lock do state preso e recursos pela metade, então o segundo run espera na fila.
+
+### `workflow_dispatch` e `inputs`
+
+Gatilho de disparo manual (botão **Run workflow** ou `gh workflow run`), com campos de formulário (`inputs`). O GitHub
+só lista o workflow se o arquivo estiver na **branch padrão** do repositório; por isso o fork usa a branch de entrega
+como padrão. Usado no [`cd-aws.yml`](../../.github/workflows/cd-aws.yml), porque o lab fica desligado quase sempre.
+Analogia: serviço por agendamento, em vez da revisão automática de todo carro que entra.
+
+### `if: always()` e passo de limpeza
+
+Um step normalmente só roda se os anteriores passaram; com `always()`, roda mesmo depois de uma falha. O `cd-aws.yml`
+libera o IP do runner no load balancer só durante o smoke test e o remove num passo `always()`. Analogia: devolver a
+chave do carro ao balcão no fim do serviço, tenha dado certo ou não.
 
 ### Teste flaky e condição de corrida no NodePort
 

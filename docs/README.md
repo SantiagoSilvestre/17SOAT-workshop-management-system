@@ -8,7 +8,7 @@ ela.
 
 | Documento | Responde |
 | --- | --- |
-| [Visão geral da arquitetura](architecture/overview.md) | Como o sistema é dividido e onde ele roda (C4 + implantação) |
+| [Visão geral da arquitetura](architecture/overview.md) | Como o sistema é dividido e onde ele roda (C4 + implantação no kind e na AWS) |
 | [Decisões arquiteturais (ADRs)](adr/) | Por que cada escolha estrutural foi feita |
 | [Architecture.md](Architecture.md) | Requisitos oficiais, domínio (DDD), aggregates e linguagem ubíqua |
 | [Relatório de vulnerabilidades](security/vulnerability-report.md) | Achados dos scans de segurança e o tratamento de cada um |
@@ -19,10 +19,11 @@ ela.
 | --- | --- | --- |
 | [Execução local com Docker Compose](setup/local-docker-compose.md) | Tutorial | Como subir a API no dia a dia |
 | [Ambiente Kubernetes local](setup/local-kubernetes.md) | Tutorial | Como criar o cluster e o banco com Terraform e implantar a aplicação |
+| [Ambiente AWS Academy](setup/aws-academy.md) | Tutorial | Como criar rede, EKS e RDS com Terraform, implantar, usar e destruir sem deixar custo |
 | [Configuração](setup/configuration.md) | Referência | Quais variáveis de ambiente existem e de onde vem cada valor |
 | [Verificação de saúde](operations/health-checks.md) | Explicação | O que liveness e readiness significam e como testá-las |
 | [Teste de carga e HPA](operations/load-testing-hpa.md) | How-to | Como gerar carga e observar a escala automática |
-| [CI/CD](operations/ci-cd.md) | Referência | O que cada workflow faz e como configurar o fork |
+| [CI/CD](operations/ci-cd.md) | Referência | O que cada workflow faz (inclusive a entrega na AWS) e como configurar o fork |
 
 ## Para consumir a API
 
