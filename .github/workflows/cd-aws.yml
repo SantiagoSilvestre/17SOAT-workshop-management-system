@@ -98,6 +98,7 @@ jobs:
             -var="state_bucket=${TF_STATE_BUCKET}" -var="region=${AWS_REGION}"
 
       - name: Configure kubectl
+        id: kubeconfig
         run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
 
       - name: Write application secrets
@@ -166,8 +167,9 @@ jobs:
           test "$status" = "200"
           echo "Smoke test passed for $IMAGE at ${base}" | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Without a kubeconfig, kubectl falls back to localhost:8080 and only prints connection errors.
       - name: Diagnostics
-        if: ${{ failure() }}
+        if: ${{ failure() && steps.kubeconfig.outcome == 'success' }}
         run: |
           kubectl get pods,service,hpa -n "$NAMESPACE" -o wide || true
           kubectl describe deployment/workshop-app -n "$NAMESPACE" || true
