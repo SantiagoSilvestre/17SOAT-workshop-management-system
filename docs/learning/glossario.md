@@ -54,6 +54,14 @@ Forma de dividir a documentação pelo que o leitor quer fazer: **tutorial** (ap
 do mecânico, a ficha de procedimento, o catálogo de peças e a aula teórica são documentos diferentes. A coluna "Tipo"
 do [índice](../README.md) segue essa divisão.
 
+### Runbook
+
+Roteiro operacional que alguém segue passo a passo, sem precisar entender tudo antes: comando, saída esperada e o que
+fazer se der diferente. Só vale se foi **executado do zero** por outra pessoa, porque quem escreveu pula passos
+implícitos sem perceber. Analogia: o procedimento de troca de óleo pendurado no box, que o mecânico novo segue sem
+perguntar. No projeto: [Ambiente Kubernetes local](../setup/local-kubernetes.md) e
+[Ambiente AWS Academy](../setup/aws-academy.md), com as seções "Verificar" e "Problemas comuns".
+
 ### Fonte única da verdade
 
 Cada fato vive em **um** documento; os outros apontam para ele em vez de copiar. Cópias envelhecem em ritmos
@@ -408,6 +416,15 @@ Lista de padrões de arquivos que o git não oferece para commit. `!padrão` rea
 Só protege arquivos **ainda não versionados**: se um segredo já foi commitado, ignorar depois não o apaga do
 histórico (é preciso trocar o segredo). Por isso o CP3 da infra vem **antes** de qualquer Terraform. Conferência:
 `git check-ignore -v <arquivo>` mostra qual linha casou; `git status` é a prova final.
+
+### Drift
+
+Diferença entre o que o código/state descreve e o que existe de verdade, causada por mudança fora do fluxo (clique no
+console, `kubectl edit`, outro dono apagando o recurso). O `terraform plan` e o `kubectl diff -k` revelam o drift:
+saída vazia significa "real = código". Analogia: a ficha do carro diz pneu novo, mas alguém trocou por um usado sem
+registrar. O projeto evita drift com **dono único** de cada recurso: se o Kustomize declarasse o namespace, um
+`kubectl delete -k` apagaria o banco e deixaria o state do Terraform mentindo
+([overview, §4.4](../architecture/overview.md#44-ambientes)).
 
 ## Aplicação
 

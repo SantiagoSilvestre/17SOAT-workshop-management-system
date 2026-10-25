@@ -232,12 +232,9 @@ Resultado esperado (medido em 2026-10-24):
 | Swagger UI | `http://<hostname>/swagger-ui.html` |
 | Mailpit | `kubectl port-forward -n workshop service/mailpit 8025:8025` e abrir `http://localhost:8025` |
 
-**Postman.** Crie um environment `AWS` com `baseUrl = http://<hostname>` (sem porta e sem barra no final) e
-selecione-o no canto superior direito ([precedência de variáveis](../learning/glossario.md#environment-do-postman-e-precedência-de-variáveis)).
-O banco da AWS nasce vazio, sem seeds; rode o fluxo do [teste manual](../api/manual-testing.md) do início, criando
-técnico, serviço e peça antes da OS. Para a aprovação por webhook (HMAC), cole o valor de
-`APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` da AWS no **Current value** da variável **da collection**
-`estimateGatewaySecret` e dê **Reset** ao terminar, para o segredo não ser salvo nem exportado.
+**Postman.** Environment `AWS` com `baseUrl = http://<hostname>`, segredo HMAC da AWS só no *Current value* e
+roteiro desde o início (o banco nasce sem seeds): passo a passo em
+[Teste manual, "Outros ambientes"](../api/manual-testing.md#outros-ambientes-kind-e-aws).
 
 **Teste de carga.** O mesmo [roteiro do HPA](../operations/load-testing-hpa.md), trocando o endereço:
 

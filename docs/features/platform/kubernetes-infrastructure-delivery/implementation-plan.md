@@ -274,8 +274,17 @@ commits focados:
       alvo `e2e` no `Makefile` e 3 descrições da collection Postman ("passo N do README"; a numeração da Sequência
       executável não mudou). Mantidas por serem registro histórico: ADR-008 (linha 143) e o README da feature
       `service-order-status-notifications`. Link checker: 13 documentos, 0 links quebrados.
-- [ ] Postman/README: fluxo de teste manual atualizado (regra do `AGENTS.md`).
-- [ ] Gravar o vídeo local: deploy, pipeline, consumo das APIs e HPA escalando.
+- [x] Postman/README: fluxo de teste manual atualizado (regra do `AGENTS.md`). A pasta `Health` e o intake completo já
+      estavam no `docs/api/manual-testing.md` (CP2 e feature `service-order-full-intake`). Em 2026-10-25 entrou a seção
+      "Outros ambientes (kind e AWS)": `baseUrl` por ambiente, environment `AWS` no Postman, segredo HMAC da AWS só no
+      *Current value*, banco sem seeds e Mailpit por túnel. Conferido que Compose, overlay local e coleção usam o mesmo
+      segredo HMAC de desenvolvimento e que os IDs padrão da coleção são marcadores (nenhum seeder os usa). O guia da
+      AWS passou a apontar para essa seção (fonte única). A coleção não mudou. Glossário: runbook e drift.
+- [x] ~~Gravar o vídeo local: deploy, pipeline, consumo das APIs e HPA escalando.~~ **Dispensado por Santiago
+      Silvestre em 2026-10-25:** era um vídeo "de garantia" caso a AWS falhasse. As cenas gravadas na AWS em
+      2026-10-24 cobrem os quatro itens que o enunciado exige no vídeo (deploy, CI/CD com `cd.yml` e CD AWS, consumo
+      das APIs e HPA 2 → 4 com k6), e o enunciado não exige ambiente local no vídeo.
+- [ ] Verificação: seguir o `docs/setup/local-kubernetes.md` do zero. Adiada para 2026-10-26 (decisão do Santiago).
 
 Verificação: README ≤ 150 linhas e sem conteúdo duplicado; link checker com 0 links quebrados (inclusive âncoras);
 mermaid renderizado no GitHub; seguir só o `docs/setup/local-kubernetes.md` do zero em um cluster novo

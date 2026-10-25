@@ -30,7 +30,7 @@ restante do roteiro. `baseUrl` deve conter apenas a origem, sem `/api`: para a e
 
 | Variável | Como preencher |
 | --- | --- |
-| `baseUrl` | `http://localhost:8080` localmente. |
+| `baseUrl` | `http://localhost:8080` no Docker Compose e no kind; na AWS, o hostname do load balancer (ver [Outros ambientes](#outros-ambientes-kind-e-aws)). |
 | `authToken` | Preenchida automaticamente pelo passo 0 (`Login (bootstrap admin)`); as demais requisições a usam via `Authorization: Bearer {{authToken}}`. |
 | `customerId`, `vehicleId`, `technicianId`, `stockItemId`, `serviceOrderId`, `executionId`, `serviceExecutionId`, `diagnosisId` e `estimateId` | A coleção as atualiza automaticamente quando a respectiva requisição de criação/diagnóstico obtém sucesso. |
 | `stockReservationId` | É preenchida pelo script de `Retry stock reservation` quando houver `reservationId`; se a reserva já ocorreu na decisão, copie `executions[0].stockReservationId` da resposta da decisão para consultar ou consumir a reserva. |
@@ -42,13 +42,38 @@ restante do roteiro. `baseUrl` deve conter apenas a origem, sem `/api`: para a e
 | `purchaseOrderFlowIdempotencyKey` | É gerada pela collection ao executar `Create Purchase Order from demand`; o `Retry same Purchase Order` reutiliza-a automaticamente. |
 | `customerTaxId` | Informe o CPF/CNPJ sem formatação usado para o Customer; é utilizado somente por `Identify customer by CPF/CNPJ`. |
 | `catalogServiceId` | Preenchida automaticamente por `Registrations / Service Catalog / Create catalog service` (passo 3); identifica o serviço informado no diagnóstico (passo 8). |
-| `estimateGatewaySecret` | Segredo HMAC usado por `Decide estimate lines via external gateway (HMAC)`. O valor padrão coincide com o padrão de `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` em `.env.example`/`docker-compose.yml`; se você alterar o segredo da aplicação, altere esta variável também. |
+| `estimateGatewaySecret` | Segredo HMAC usado por `Decide estimate lines via external gateway (HMAC)`. O valor padrão coincide com o padrão de `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` em `.env.example`/`docker-compose.yml`; se você alterar o segredo da aplicação, altere esta variável também. Na AWS o segredo é outro (ver [Outros ambientes](#outros-ambientes-kind-e-aws)). |
 | `metricFrom` e `metricTo` | Preenchidas automaticamente por `Get average execution time` com uma janela de 24 horas antes e depois da execução da request. Podem ser substituídas por instantes ISO-8601 para uma consulta manual. |
 
 As requisições `Create customer`, `Create vehicle`, `Create catalog service` e `Create stock item` têm um script de
 pré-requisição que gera CPF (com dígitos verificadores válidos), placa, chassi, nome de serviço e SKU únicos a cada
 execução — não é necessário editar esses valores manualmente entre execuções, mesmo em uma base já usada. Os IDs
 retornados em respostas `201 Created` são os que devem ser usados no restante do teste.
+
+### Outros ambientes (kind e AWS)
+
+A mesma coleção e a mesma sequência valem nos três ambientes; mudam só o endereço e, na AWS, o segredo HMAC.
+
+| Ambiente | Como subir | `baseUrl` | Segredo HMAC (`estimateGatewaySecret`) | Mailpit |
+| --- | --- | --- | --- | --- |
+| Docker Compose | Comandos acima | `http://localhost:8080` | Valor padrão da coleção | `http://localhost:8025` |
+| kind (local) | [Ambiente Kubernetes local](../setup/local-kubernetes.md) | `http://localhost:8080` (NodePort mapeado) | Valor padrão da coleção (o `secrets.env.example` do overlay local usa o mesmo) | `http://localhost:8025` |
+| AWS (EKS) | [Ambiente AWS Academy](../setup/aws-academy.md) | `http://<hostname do load balancer>` (porta 80, sem barra no final) | O valor de `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` da AWS | Túnel: `kubectl port-forward -n workshop service/mailpit 8025:8025` |
+
+Na AWS:
+
+- Não edite a variável `baseUrl` da coleção. Crie um **environment** `AWS` no Postman com `baseUrl` e selecione-o no
+  canto superior direito: o valor do environment tem precedência sobre o da coleção, e a coleção continua apontando
+  para `localhost` nos outros ambientes. O hostname muda a cada novo load balancer (a cada deploy do zero).
+- O script de assinatura lê o segredo da variável **da coleção** `estimateGatewaySecret`. Cole o valor da AWS no
+  **Current value** dessa variável (nunca no *Initial value*, que é exportado com a coleção) e clique em **Reset** ao
+  terminar.
+- O banco nasce vazio e sem seeds: execute o roteiro desde o passo 0, sem pular os cadastros. Só a conta `admin` de
+  bootstrap existe.
+- A API só responde a partir do IP liberado no load balancer; de outro IP, as requisições terminam em *timeout*.
+- Os IDs padrão das variáveis da coleção (`11111111-...`, `22222222-...`) são só marcadores, em qualquer ambiente:
+  uma requisição enviada antes da criação correspondente responde `404`. Siga a ordem do roteiro, que grava os IDs
+  reais.
 
 ## Sequência executável
 
