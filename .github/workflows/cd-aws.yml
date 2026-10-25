@@ -48,7 +48,9 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
-      AWS_ALLOWED_CIDR: ${{ vars.AWS_ALLOWED_CIDR }}
+      # A secret, not a variable: GitHub prints every env value at the top of each step, and only secrets are masked.
+      # As a variable, the developer IP appeared in the public logs of this fork (CP8 security review).
+      AWS_ALLOWED_CIDR: ${{ secrets.AWS_ALLOWED_CIDR }}
       # Passed through env, never interpolated into a script, so the input cannot inject shell commands.
       IMAGE_SHA: ${{ inputs.image_sha || github.sha }}
 
@@ -71,8 +73,9 @@ jobs:
           echo "IMAGE=${image}" >> "$GITHUB_ENV"
 
       # Fails fast and explicitly when the session credentials expired, before Terraform prints a confusing error.
+      # The output is discarded: in the Learner Lab the session ARN carries the account number and the student e-mail.
       - name: Check AWS credentials
-        run: aws sts get-caller-identity --query Arn --output text
+        run: aws sts get-caller-identity > /dev/null
 
       - name: Check preconditions
         run: |

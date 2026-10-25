@@ -94,7 +94,7 @@ arquivo estiver na **branch padrão** do repositório; por isso a branch padrão
 | Step | O que faz |
 |---|---|
 | `Validate inputs` | Exige `image_sha` com 40 caracteres hexadecimais e `AWS_ALLOWED_CIDR` com um único IPv4 `/32` (*fail-safe*: nunca `0.0.0.0/0`) |
-| `Check AWS credentials` | `aws sts get-caller-identity`: com a sessão do lab expirada, falha aqui, antes de tocar em qualquer recurso |
+| `Check AWS credentials` | `aws sts get-caller-identity`, com a saída descartada (no lab, o ARN traz o número da conta e o e-mail do aluno): com a sessão expirada, falha aqui, antes de tocar em qualquer recurso |
 | `Check preconditions` | O cluster `workshop` existe e a imagem `:sha` existe no GHCR |
 | `Deploy database` | `terraform apply` de `infra/aws/database`: RDS, namespace e ConfigMap/Secret `workshop-db` (deploy do banco) |
 | `Configure kubectl` | `aws eks update-kubeconfig` |
@@ -115,7 +115,11 @@ arquivo estiver na **branch padrão** do repositório; por isso a branch padrão
 | Secret | `APP_SECURITY_JWT_SECRET`, `APP_SECURITY_ESTIMATE_GATEWAY_HMAC_SECRET` | Os mesmos do `k8s/overlays/aws/secrets.env` local, para o Postman continuar assinando o webhook com o mesmo segredo |
 | Variable | `AWS_REGION` | `us-east-1` |
 | Variable | `TF_STATE_BUCKET` | Nome do bucket do state ([bootstrap](../../infra/aws/bootstrap/README.md)) |
-| Variable | `AWS_ALLOWED_CIDR` | Seu IP público + `/32`. É *variable*, não *secret*: o workflow precisa validar o formato |
+| Secret | `AWS_ALLOWED_CIDR` | Seu IP público + `/32`. É *secret*, e não *variable*: o GitHub imprime os valores de `env:` no topo de cada step e só mascara os *secrets*. O workflow valida o formato do mesmo jeito |
+
+Regra para novos valores: *variable* só para o que poderia estar no README (região, nome do bucket); IP, e-mail e
+qualquer dado que identifique uma pessoa vão em *secret*. O fork é público, e os logs de um run podem ser lidos por
+qualquer pessoa logada no GitHub.
 
 O IP do runner fica liberado só durante o smoke test: o runner é uma máquina do GitHub, fora do seu `/32`, e sem essa
 liberação o smoke test pelo load balancer daria timeout.
@@ -124,7 +128,7 @@ Execuções registradas (2026-10-24, no fork):
 
 | Run | Resultado | O que prova |
 |---|---|---|
-| `40144883328`, `40145730363` | Falha em `Validate inputs` | O *fail-safe* do `AWS_ALLOWED_CIDR` (variable mal formatada) |
+| `40144883328`, `40145730363` | Falha em `Validate inputs` | O *fail-safe* do `AWS_ALLOWED_CIDR` (valor mal formatado) |
 | `40145796420` | Falha em `Check AWS credentials` (`NoCredentials`) | Credencial inválida falha logo no início, sem efeito parcial |
 | `40149256673` | Verde em 7m11s | Deploy completo: banco em 5m19s, aplicação em 8 s, smoke test pelo load balancer em 85 s |
 
