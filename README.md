@@ -66,6 +66,7 @@ de bootstrap `admin` / `changeme123` e use o token no botão **Authorize**. Os e
 
 | Quero... | Leia |
 | --- | --- |
+| Assistir à demonstração da fase 2 (deploy, CI/CD, APIs e HPA) | [Vídeo no YouTube](https://www.youtube.com/watch?v=-1JPvTIRDf8) |
 | Entender a arquitetura (contexto, módulos, implantação, ADRs) | [Visão geral da arquitetura](docs/architecture/overview.md) |
 | Rodar localmente com Docker Compose | [Execução local com Docker Compose](docs/setup/local-docker-compose.md) |
 | Rodar no Kubernetes local com Terraform | [Ambiente Kubernetes local](docs/setup/local-kubernetes.md) |
@@ -111,4 +112,5 @@ de bootstrap `admin` / `changeme123` e use o token no botão **Authorize**. Os e
 - [x] Manifestos Kubernetes com HPA e teste de carga
 - [x] Pipeline de entrega com cluster efêmero e smoke test
 - [x] Ambiente AWS Academy (EKS + RDS), com pipeline de deploy manual
-- [ ] Vídeo de demonstração e PDF de entrega
+- [x] [Vídeo de demonstração](https://www.youtube.com/watch?v=-1JPvTIRDf8): deploy, CI/CD, APIs e escala na AWS
+- [ ] PDF de entrega
