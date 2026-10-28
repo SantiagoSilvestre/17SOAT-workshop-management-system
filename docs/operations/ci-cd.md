@@ -61,7 +61,8 @@ O smoke test espera o rollout, exige readiness `UP`, faz login com o admin de bo
 as últimas 200 linhas do log do app. Uma falha em `Build and test` faz os outros dois jobs serem pulados.
 
 **Nome da branch de entrega.** Ele aparece **só** em `on.push.branches` no topo do `cd.yml` (hoje
-`feat/terraform-san`). Para trocar, edite essa linha. Registry, nome da imagem e dono vêm de `env:` e de
+`feat/platform-kubernetes-infrastructure-delivery`; até 2026-10-27, `feat/terraform-san`, nome que aparece nos runs
+antigos e no vídeo). Para trocar, edite essa linha. Registry, nome da imagem e dono vêm de `env:` e de
 `github.repository_owner`, então o mesmo arquivo funciona no fork e no repositório do grupo.
 
 **Configuração do fork (uma vez):**

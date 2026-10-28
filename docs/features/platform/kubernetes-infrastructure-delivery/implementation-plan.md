@@ -12,8 +12,9 @@
 
 ## Premissas
 
-- Branch `feat/terraform-san`. Cada checkpoint termina com uma mensagem de commit **sugerida**; o commit só acontece
-  com pedido explícito.
+- Branch `feat/terraform-san`, renomeada em 2026-10-27 para `feat/platform-kubernetes-infrastructure-delivery`
+  (convenção `{type}/{bounded-context}-{feature}` do `AGENTS.md`). As menções antigas são registro histórico. Cada
+  checkpoint termina com uma mensagem de commit **sugerida**; o commit só acontece com pedido explícito.
 - O Santiago executa os comandos principais (`docker build/compose`, `terraform`, `kubectl apply`, k6, observação do
   HPA) e cola as saídas; as evidências são registradas aqui.
 - A abertura de OS completa (passo 3) é uma feature própria em `docs/features/servicelifecycle/` e não faz parte deste
