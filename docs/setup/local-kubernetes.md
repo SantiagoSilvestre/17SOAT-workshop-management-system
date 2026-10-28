@@ -16,7 +16,7 @@ Para só desenvolver e chamar a API, o [Docker Compose](local-docker-compose.md)
 | 3 | Implantar a aplicação | `make k8s-local-deploy` | ~2 min de build + até 3 min de boot |
 | 4 | Verificar | `kubectl get pods,svc,hpa -n workshop` | — |
 | 5 | Usar | Postman, Swagger, Mailpit, [teste de carga](../operations/load-testing-hpa.md) | — |
-| 6 | Destruir | `destroy` do banco e depois do cluster | ~20 s |
+| 6 | Destruir | `destroy` do banco e depois do cluster | ~20 s sem a aplicação; ~1 min 30 s com ela |
 
 Os alvos `make infra-local-up` e `make infra-local-down` executam as etapas 1–2 e 6 de uma vez, com `-auto-approve`.
 Enquanto estiver aprendendo, prefira rodar o Terraform diretamente e ler cada `plan` antes de confirmar.
@@ -35,6 +35,9 @@ container. No Windows, a memória do WSL2 é definida em `%UserProfile%\.wslconf
 de 16 GB).
 
 Todos os comandos abaixo rodam na raiz do repositório e funcionam no PowerShell e no Bash, exceto onde indicado.
+No Windows PowerShell 5.1, `make` não existe (use as seções "Sem make") e `curl` é um apelido de `Invoke-WebRequest`,
+que pede confirmação e não mostra o JSON: digite `curl.exe` para chamar o curl de verdade (vem com o Windows 10 e 11).
+Rode um bloco de cada vez e cole no terminal só os comandos, nunca a saída anterior.
 
 ## 1. Criar o cluster
 
@@ -110,6 +113,8 @@ make k8s-local-deploy
 
 ### Sem make (PowerShell)
 
+Rode os grupos na ordem, um de cada vez, conferindo a saída de cada um antes de seguir.
+
 ```powershell
 # Segredos locais: o secrets.env é ignorado pelo git; o modelo traz valores só para desenvolvimento
 if (-not (Test-Path k8s/overlays/local/secrets.env)) {
@@ -167,14 +172,15 @@ kubectl rollout status deployment/workshop-app -n workshop --timeout=300s
 
 ```bash
 kubectl get pods,svc,hpa -n workshop
-curl http://localhost:8080/actuator/health/readiness
+curl http://localhost:8080/actuator/health/readiness    # no PowerShell: curl.exe
 ```
 
 Resultado esperado:
 
 - Pods `workshop-app-...`, `mailpit-...`, `supplier-simulator-...` e `mysql-0` em `1/1 Running`, com 0 restarts.
 - Readiness: `{"status":"UP"}`.
-- HPA com `TARGETS` em percentual de CPU (por exemplo, `cpu: 2%/70%`) e `REPLICAS 1`.
+- HPA com `TARGETS` em percentual de CPU (por exemplo, `cpu: 2%/70%`) e `REPLICAS 1`. Logo após o deploy aparece
+  `cpu: <unknown>/70%` por 1 a 2 minutos, enquanto o metrics-server coleta a primeira amostra; repita o comando.
 
 Com o banco vazio, o primeiro boot leva 2 a 3 minutos (o Flyway aplica todas as migrations). Nesse intervalo, o pod
 fica `0/1 Running` sem reiniciar: a `startupProbe` tolera até 5 minutos. Com o banco já migrado, o boot leva ~30 s.
@@ -202,6 +208,10 @@ Ao terminar, libere memória e disco. A ordem importa: **primeiro o banco, depoi
 terraform -chdir=infra/local/database destroy
 terraform -chdir=infra/local/cluster destroy
 ```
+
+Com a aplicação ainda implantada, o `destroy` do banco fica cerca de 1 minuto em
+`kubernetes_namespace_v1.workshop: Still destroying...`: apagar o namespace apaga também tudo o que está dentro dele
+(pods da aplicação, Mailpit, simulador), e o Kubernetes espera esses pods terminarem. É normal.
 
 A stack `database` precisa do cluster para conseguir apagar seus recursos. Se o cluster for destruído antes, o
 `destroy` do banco falha sem apagar nada e o state fica órfão (veja [Problemas comuns](#problemas-comuns)).

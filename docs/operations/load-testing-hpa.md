@@ -74,17 +74,22 @@ para a máquina host; o `--add-host` garante esse nome também no Linux.
 
 ## O que esperar
 
-Resultado medido em 2026-10-18 (Docker Desktop com 7 GB e 5 CPUs para o WSL2):
+Resultado medido em 2026-10-18 e repetido em 2026-10-27 (Docker Desktop com 7 GB e 5 CPUs para o WSL2):
 
 | Momento | Terminal 1 (HPA) | Terminal 2 (pods) |
 | --- | --- | --- |
 | Antes da carga | `cpu: ~2%/70%`, 1 réplica | 1 pod `1/1` |
 | ~1 min de carga | CPU passa de 100% → 2 réplicas | pod novo `0/1` → `1/1` em ~30 s |
-| Pico | até ~124% → 3 réplicas | 3 pods `1/1` |
-| ~1 min após o fim | CPU baixa → 3 → 2 → 1 | pods extras em `Terminating` |
+| Pico | 124% a 167% → 3 réplicas | 3 pods `1/1` |
+| ~1 min após o fim | CPU baixa → 3 → 2 → 1 | pods extras em `Terminating` e depois `Error` |
 
-Resumo do k6 nessa execução: 6727 requisições, **0 falhas**, p95 de 77 ms. O endereço não mudou durante a escala: o
-Service distribuiu as requisições entre os pods prontos sem nenhuma configuração no cliente.
+O `Error` no fim não é falha: para remover um pod, o Kubernetes envia o sinal SIGTERM, o Spring encerra a aplicação e
+a JVM sai com código diferente de zero (em geral 143 = 128 + 15, o número do SIGTERM). O `kubectl` mostra `Error`
+para qualquer saída diferente de zero, mesmo quando foi ele quem pediu o encerramento. `kubectl get events -n
+workshop` mostra `Killing ... Stopping container app` e `SuccessfulRescale ... All metrics below target`.
+
+Resumo do k6 nessas execuções: 6727 e 6708 requisições, **0 falhas**, p95 de 77 ms nas duas. O endereço não mudou
+durante a escala: o Service distribuiu as requisições entre os pods prontos sem nenhuma configuração no cliente.
 
 Um pod novo nasce com CPU alta (~1000m) por causa do boot da JVM. Isso não provoca escala em cascata: o HPA ignora a
 CPU de pods que ainda não estão prontos.
@@ -93,7 +98,7 @@ CPU de pods que ainda não estão prontos.
 
 | Sintoma | Causa provável | O que fazer |
 | --- | --- | --- |
-| `Login failed ... is the API reachable` no início | O k6 não alcança a API | Conferir `curl http://localhost:8080/actuator/health/readiness` no host; no Linux, manter o `--add-host` |
+| `Login failed ... is the API reachable` no início | O k6 não alcança a API | Conferir `curl http://localhost:8080/actuator/health/readiness` no host (no PowerShell, `curl.exe`); no Linux, manter o `--add-host` |
 | HPA em `<unknown>/70%` | metrics-server ainda sem dados do pod | Aguardar ~1 min; conferir `kubectl top pods -n workshop` |
 | Não passa de 1 réplica | Pouca carga para a máquina | Aumentar o alvo de usuários virtuais em `stages` |
 | Não volta a 1 réplica | Carga residual ou janela de 60 s ainda correndo | Aguardar ~2 min sem carga; `kubectl describe hpa workshop-app -n workshop` mostra o motivo |
