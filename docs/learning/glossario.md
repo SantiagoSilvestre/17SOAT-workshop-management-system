@@ -619,6 +619,20 @@ que ela pode fazer (menor privilégio): só o job `image` tem `packages: write` 
 `uses: dono/action@<sha do commit>` em vez de `@v4`: a tag pode ser movida para outro código (ataque de *supply
 chain*), o commit não. Analogia: pedir a peça pelo número de série, não "a mais nova da marca".
 
+### SCA (Software Composition Analysis) e CVE
+
+Uma **CVE** é o registro público de uma vulnerabilidade conhecida, com número próprio (`CVE-AAAA-NNNN`). A **SCA**
+compara as bibliotecas do projeto com o banco de CVEs (NVD) e avisa quais estão afetadas. Analogia: a oficina
+conferir no estoque se alguma peça é do lote de um recall. Aqui: OWASP Dependency-Check no
+[`security-scan.yml`](../../.github/workflows/security-scan.yml); a correção vai no `pom.xml` (ex.: `tomcat.version`).
+
+### Rate limiting
+
+Limitar quantas requisições o mesmo cliente faz por intervalo (ex.: 100/min); passou disso, `429 Too Many Requests`.
+Analogia: a recepção não deixa um único cliente ocupar a fila inteira. O projeto **não tem** rate limiting (risco
+residual aceito; ver a revisão de segurança do
+[plano da infra](../features/platform/kubernetes-infrastructure-delivery/implementation-plan.md)).
+
 ### Máscara de secret (`***`)
 
 O GitHub procura o **texto exato** de cada secret no log e o troca por `***`; `::add-mask::` estende isso a valores
@@ -674,6 +688,21 @@ com tag pelo SHA. Analogia: estoque central de peças.
 
 Agrupamento de secrets e variáveis que só os jobs que declaram `environment: <nome>` enxergam (aqui, `kind-ci` e
 `aws-academy` no fork). Analogia: um cofre por filial.
+
+### Pipeline de infraestrutura x pipeline de aplicação
+
+A infraestrutura (rede, cluster) muda raramente; a aplicação, várias vezes por dia. Em produção costumam ser
+pipelines separadas: a de infra faz `terraform plan` no PR e `apply` só após aprovação; a de app só faz deploy.
+Ninguém roda `apply` de produção do próprio PC. Aqui: o [`cd.yml`](../../.github/workflows/cd.yml) cria o kind
+efêmero a cada run; o [`cd-aws.yml`](../../.github/workflows/cd-aws.yml) aplica o banco e a app, e o cluster EKS é
+criado à mão (credenciais do lab de 4 h e custo por hora).
+
+### OIDC (federação GitHub → AWS)
+
+Em vez de guardar access keys como secret, o job apresenta à AWS um token assinado pelo GitHub ("sou o repo X,
+branch Y") e recebe credenciais temporárias de uma role que só aceita esse repo/branch. Analogia: o crachá de
+visitante emitido na portaria, que vale só para aquele dia e aquela sala. Não usado no projeto: o Learner Lab só
+oferece a LabRole e credenciais de sessão (ver [SCP](#scp-service-control-policy)).
 
 ### k6
 
@@ -828,3 +857,12 @@ apaga esse LB: ele vira um **recurso órfão**, continua cobrando e trava a remo
 ordem é inversa à da criação: app (`kubectl delete`, que faz o Kubernetes apagar o LB) → `database` → `cluster`.
 Analogia: antes de devolver o galpão alugado, desmonte a recepção que você montou por conta própria; o dono só leva o
 que está no contrato. Ver [`infra/aws/bootstrap/README.md`](../../infra/aws/bootstrap/README.md).
+
+### Alias de comando (`curl` no PowerShell)
+
+Alias é um apelido: um nome curto que o shell troca por outro comando antes de executar. No Windows PowerShell 5.1,
+`curl` é alias de `Invoke-WebRequest`, um comando diferente que analisa a página como um navegador (por isso pede
+confirmação e devolve uma tabela em vez do JSON). `curl.exe` pula o alias e chama o curl de verdade. O mesmo vale para
+`PS`, alias de `Get-Process`: colar a saída do terminal (linhas `PS E:\...>`) de volta no PowerShell faz ele tentar
+executar cada linha. Analogia: pedir "a chave 10" e receber uma chave de outro jogo que tem o mesmo apelido na
+oficina. Ver [`local-kubernetes.md`](../setup/local-kubernetes.md#pré-requisitos).

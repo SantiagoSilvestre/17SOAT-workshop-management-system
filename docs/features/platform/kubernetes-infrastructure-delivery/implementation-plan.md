@@ -3,9 +3,9 @@
 | Campo | Valor |
 |---|---|
 | Feature | `kubernetes-infrastructure-delivery` |
-| Status | Approved |
+| Status | Implemented |
 | Responsável | Santiago Silvestre |
-| Atualizado em | 2026-10-17 |
+| Atualizado em | 2026-10-27 |
 | Aprovado por | Santiago Silvestre |
 | Aprovado em | 2026-10-14 |
 | Especificação técnica | `./technical-spec.md` (Approved, Santiago Silvestre, 2026-10-14) |
@@ -229,7 +229,8 @@ Commit sugerido: `feat(platform): add delivery pipeline with ephemeral kind clus
 
 ### CP7 — README local e vídeo de garantia (passo 10, previsto 22/10)
 
-**Status: In Progress (2026-10-20).**
+**Status: Completed (2026-10-27): documentação reorganizada (2026-10-20 a 2026-10-25) e guia local verificado do zero
+pelo Santiago em 2026-10-27.**
 
 **Escopo ampliado (aprovado por Santiago Silvestre em 2026-10-20):** além de documentar o ambiente local, o README de
 776 linhas é reorganizado em documentos com uma responsabilidade cada (Diátaxis: tutorial, how-to, referência,
@@ -284,7 +285,17 @@ commits focados:
       Silvestre em 2026-10-25:** era um vídeo "de garantia" caso a AWS falhasse. As cenas gravadas na AWS em
       2026-10-24 cobrem os quatro itens que o enunciado exige no vídeo (deploy, CI/CD com `cd.yml` e CD AWS, consumo
       das APIs e HPA 2 → 4 com k6), e o enunciado não exige ambiente local no vídeo.
-- [ ] Verificação: seguir o `docs/setup/local-kubernetes.md` do zero. Adiada para 2026-10-26 (decisão do Santiago).
+- [x] Verificação: seguir o `docs/setup/local-kubernetes.md` do zero (Santiago, 2026-10-27, PowerShell 5.1 sem `make`,
+      partindo de state vazio). Duas rodadas: a 1ª cobriu as etapas 1–4 e 6 e mostrou que faltava a etapa 5; a 2ª foi
+      feita com o guia já corrigido e cobriu todas as etapas, inclusive Postman, Mailpit, Swagger e carga (evidências na
+      tabela). Passos implícitos e pontos de confusão encontrados, todos corrigidos no guia: (1) `make` não existe no
+      PowerShell (aviso nos pré-requisitos, apontando para "Sem make"); (2) no Windows PowerShell 5.1, `curl` é alias de
+      `Invoke-WebRequest`, que pede confirmação e não mostra o JSON (`curl.exe` nos pré-requisitos e na etapa 4; também
+      em `load-testing-hpa.md`); (3) o HPA mostra `<unknown>` por 1–2 min após o deploy (explicado na etapa 4);
+      (4) com a aplicação implantada, o `destroy` do banco leva ~1 min a mais porque o namespace espera os pods
+      terminarem (tempo e explicação na etapa 6); (5) pods removidos pelo scale-down aparecem como `Error` (SIGTERM → saída diferente de
+      zero; explicado em `load-testing-hpa.md`). Também ficou explícito rodar um bloco por vez e não colar a saída de
+      volta no terminal (as linhas `PS E:\...>` viram chamadas de `Get-Process`). Glossário: alias de comando.
 
 Verificação: README ≤ 150 linhas e sem conteúdo duplicado; link checker com 0 links quebrados (inclusive âncoras);
 mermaid renderizado no GitHub; seguir só o `docs/setup/local-kubernetes.md` do zero em um cluster novo
@@ -391,8 +402,21 @@ Commit sugerido: `feat(platform): provision aws eks and rds with terraform and a
 
 ### CP9 — Entrega final (passo 12, previsto 26/10, freeze às 12h)
 
-- [ ] README final, vídeo final e PDF.
-- [ ] Marcar a feature como `Implemented` só se todos os gates passarem.
+- [x] README final e vídeo final: vídeo publicado no YouTube
+      ([`-1JPvTIRDf8`](https://www.youtube.com/watch?v=-1JPvTIRDf8)) e linkado no README, na tabela "Quero... → Leia" e
+      em "Status da fase 2" (2026-10-27).
+- [x] Revisão de segurança: "Dependências" resolvido e "Abuso de endpoints" aceito (2026-10-26).
+- [x] `./mvnw clean verify` final: 936 testes, 0 falhas, 0 ignorados, 94,5% de instruções (2026-10-26). Depois disso
+      só mudou documentação.
+- [ ] PDF de entrega (link do repositório, desenho da arquitetura e link do vídeo). É um artefato do grupo, fora do
+      repositório, e depende da branch escolhida; **não** é gate do checklist de conclusão do `AGENTS.md`, por isso
+      fica como pendência do grupo, fora deste plano (decisão do Santiago, 2026-10-27).
+- [x] Marcar a feature como `Implemented` só se todos os gates passarem: CP1–CP8 `Completed`, `verify` verde,
+      Modulith intacto (nenhuma mudança estrutural de módulo), revisão de segurança sem achado crítico/alto em aberto
+      (o Alto da AWS está mitigado, com risco residual aceito), OpenAPI/Postman e guias atualizados. Marcada por
+      Santiago Silvestre em 2026-10-27.
+
+**Status: Completed (2026-10-27).**
 
 ## Revisão de segurança
 
@@ -407,8 +431,8 @@ A preencher durante a implementação. Linha de base (achados da technical-spec)
 | Dados pessoais em log público | A mesma busca encontrou, em texto puro, o IP do desenvolvedor (`AWS_ALLOWED_CIDR` era *variable*, impressa no cabeçalho `env:` de cada step) e o ARN da sessão com o número da conta e o e-mail do aluno (saída do `sts get-caller-identity`). O fork é público: qualquer pessoa logada no GitHub lê os logs | Média | `AWS_ALLOWED_CIDR` virou *secret* do environment (Santiago, 2026-10-25) e o workflow lê `secrets.AWS_ALLOWED_CIDR`; o `sts get-caller-identity` descarta a saída; logs dos 4 runs do CD AWS apagados no GitHub (Santiago, 2026-10-25; a conclusão de cada run continua visível); `ci-cd.md` corrigido (afirmava que o valor precisava ser *variable*). Continuam no log, aceitos: nome do bucket, endpoint do RDS e hostname do LB (recursos já destruídos) e o `changeme123` no texto do script (já público na migration) | Resolvido (CP8): run de confirmação [`40244048603`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/40244048603) (`77efc43`) com `AWS_ALLOWED_CIDR: ***` no cabeçalho `env:`; o descarte do ARN num run bem-sucedido é verificado pelo código (`> /dev/null`), sem run verde após a correção porque exigiria uma nova sessão do lab |
 | Persistência e migrations | Nenhuma migration nova; state com senha do banco | Média | state local fora do git (CP3); AWS: backend S3 com `encrypt = true` e `use_lockfile`, bucket privado, criptografado e com versionamento (`infra/aws/bootstrap/README.md`); senhas geradas por `random_password`, nunca no `plan` | Resolvido: local (CP3) e AWS (CP8, conferido em 2026-10-25: `AES256`, bloqueio público com os 4 valores `true`, versionamento `Enabled`) |
 | Respostas de erro | Health não expõe detalhes | Baixa | `show-details`/`show-components=never` em `actuator.properties`, importado também pelos testes; banco fora → só `{"status":"DOWN"}` | Resolvido (CP2) |
-| Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | fixar versões | Pendente |
-| Abuso de endpoints | Health pode ser chamado em massa | Baixa | resposta barata; sem cache; fora de escopo limitar taxa | Pendente |
+| Dependências | Actuator (BOM do Boot), imagens com tag fixa, actions por SHA | Baixa | Actions dos três workflows (`cd.yml`, `cd-aws.yml`, `security-scan.yml`) fixadas por SHA; node do kind por digest; imagem do app com a tag do SHA do commit; Mailpit `v1.31.4` e WireMock `3.13.1` com tag fixa; providers do Terraform com lock file e checksums; chart do metrics-server `3.14.0`; Actuator com a versão do BOM do Boot, coberto pelo OWASP Dependency-Check (`security-scan.yml`), que já forçou a correção do Tomcat (`pom.xml`). Aceito: a base do `Dockerfile` (`maven:3.9.6-eclipse-temurin-21`, `eclipse-temurin:21-jre-jammy`) e o `mysql:8.4` usam tag de linha para receber patches de segurança, ao custo de um build não 100% reprodutível | Resolvido (CP9, 2026-10-26) |
+| Abuso de endpoints | Health pode ser chamado em massa | Baixa | Os três caminhos de health só aceitam `GET` e devolvem apenas o status agregado (`show-details`/`show-components=never`); a readiness faz uma checagem leve de conexão com o banco, sem cache. Alcance limitado: na AWS, o LB só aceita o `/32` do desenvolvedor (e o IP do runner durante o smoke test); no local, só `localhost`. Rate limiting fora do escopo, o mesmo risco residual registrado na abertura de OS (`service-order-full-intake`) | Aceito (CP9, 2026-10-26) |
 | Container | Não-root numérico, FS somente leitura, sem capabilities | — | `securityContext` do app: `runAsNonRoot`/`runAsUser: 1000`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem` (só `/tmp` em `emptyDir` de 256 Mi), `drop: [ALL]`, `seccomp RuntimeDefault`, `automountServiceAccountToken: false`; o app subiu sem `Read-only file system`. Mailpit/WireMock (imagens de terceiros): `allowPrivilegeEscalation: false` + seccomp, sem token | Resolvido (CP5) |
 | Secret no `last-applied-configuration` | O `kubectl apply` grava o objeto inteiro numa anotação, inclusive o `data` (base64) do Secret `workshop-app` | Baixa | Quem pode ler a anotação já pode ler o Secret (mesma permissão `get secrets`); valores locais são só de desenvolvimento. Na AWS, `kubectl apply --server-side` (manual e no `cd-aws.yml`), que não grava essa anotação | Aceito (local); resolvido na AWS (CP8) |
 | `--kubelet-insecure-tls` | TLS do kubelet não verificado | Baixa | só no kind descartável (`infra/local/cluster/main.tf`); EKS usa add-on | Resolvido (CP4) |
@@ -472,6 +496,10 @@ Registrar por checkpoint: comando, trecho relevante da saída, data e (para a pi
 | CP8 | Run de confirmação [`40244048603`](https://github.com/SantiagoSilvestre/17SOAT-workshop-management-system/actions/runs/40244048603) (`77efc43`, lab desligado): passou em `Validate inputs` (*secret* `AWS_ALLOWED_CIDR` com formato válido) e falhou em `Check AWS credentials` com `ExpiredToken` (exit 254), sem tocar em recursos; cabeçalho `env:` com `AWS_ALLOWED_CIDR: ***` e os 3 `AWS_*` como `***` | 2026-10-25 |
 | CP8 | Documentação (`ba42e95`): `markdown-link-check@3.13.7` em README, `docs/README.md`, `aws-academy.md`, `ci-cd.md`, `overview.md` e glossário → 0 links quebrados; diagramas novos renderizados no `mermaid-cli` 11.4.2; README com 110 linhas | 2026-10-25 |
 | CP4 | `destroy` `database` → `8 destroyed` (namespace por último, 13 s); `destroy` `cluster` → `2 destroyed`; `docker ps` vazio; `kubectl config get-contexts` sem `kind-workshop` | 2026-10-17 |
+| CP7 | Runbook local, 1ª rodada (Santiago): `apply` cluster e database a partir de state vazio; o contexto passou de um EKS já destruído para `kind-workshop` sozinho; node `Ready`, `mysql 1/1`, PVC `Bound`; build da imagem em 61 s; `docker cp` 165 MB + `ctr import`; `apply -k` → 9 `created`; `rollout status` → `successfully rolled out`; 4 pods `1/1`, 0 restarts; readiness `200` (15 bytes = `{"status":"UP"}`); HPA `cpu: <unknown>/70%`; `destroy` `database` → `8 destroyed` (namespace em 1m3s, com a aplicação dentro) e `cluster` → `2 destroyed` | 2026-10-27 |
+| CP7 | Runbook local, 2ª rodada (guia corrigido): etapas 1–4 ok; Mailpit e Swagger conferidos pelo Santiago; HPA `cpu: 1%/70%`; Newman (um processo por pasta, ordem do `make e2e`) contra `localhost:8080` → **27/27 pastas, 69 asserções, 0 falhas** | 2026-10-27 |
+| CP7 | Carga (Santiago, `load-testing-hpa.md`): k6 6708 requisições em 5 min, **0,00% de falhas**, p95 76,73 ms, máx. 20 VUs. HPA: 106% → 2 réplicas (15 s depois) → 167% → 3 réplicas (mais 15 s); 76–98% com 3 pods; fim da carga → 0% → 2 → 1 em ~1 min. Pods novos `0/1` → `1/1` em 26 s. Eventos: `SuccessfulRescale ... above target` e `All metrics below target`. Pods removidos: `Terminating` → `Error` (encerramento por SIGTERM, não é falha) | 2026-10-27 |
+| CP7 | `destroy` `database` e `cluster` (Santiago); conferido: os dois `terraform.tfstate` com 0 recursos e nenhum container `workshop` no Docker | 2026-10-27 |
 
 ## Rollback ou recuperação
 
