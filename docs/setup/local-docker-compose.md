@@ -50,6 +50,11 @@ As portas mudam pelo `.env` (`APP_PORT`, `DB_PORT`, `MAILPIT_UI_PORT`). Se a 330
 `DB_PORT=3307 make docker-up`. O Compose e o cluster kind usam as mesmas portas 8080 e 8025 no host, então rode um
 de cada vez.
 
+Para trocar para Kubernetes, execute `make docker-down` e siga a
+[preparação do ambiente Kubernetes](local-kubernetes.md#0-preparar-o-ambiente) antes de `make infra-local-up`.
+O volume do banco do Compose é preservado, mas seus dados não são transferidos para o banco do Kubernetes.
+Outros projetos em execução devem ser avaliados e interrompidos explicitamente pelo usuário quando necessário.
+
 ## Dados de demonstração
 
 O Compose usa o perfil `dev` com `APP_SEED_ENABLED=true`: na subida, a aplicação cria Customers e Stock Items de

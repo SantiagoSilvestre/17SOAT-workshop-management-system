@@ -49,6 +49,18 @@ PC, a imagem é construída localmente e carregada no kind. Módulos, containers
 
 ## Início rápido
 
+Escolha como deseja testar antes de executar os comandos:
+
+| Objetivo | Caminho |
+| --- | --- |
+| Testar as APIs e o fluxo de negócio com menos recursos | [Opção A: Docker Compose](#opção-a-docker-compose) |
+| Testar a implantação Kubernetes, probes, rolling update e escala automática (HPA) | [Opção B: Kubernetes local](#opção-b-kubernetes-local-kind--terraform) |
+
+Cada opção sobe seu próprio ambiente completo. Para ir direto ao Kubernetes, siga a opção B desde a preparação
+das dependências. Execute um ambiente por vez: ambos usam as portas 8080 e 8025.
+
+### Opção A: Docker Compose
+
 Pré-requisito: Docker com Docker Compose.
 
 ```bash
@@ -56,11 +68,19 @@ docker compose up -d --build                              # API, MySQL, Mailpit 
 curl http://localhost:8080/actuator/health/readiness      # {"status":"UP"} quando estiver pronta (~3 min)
 ```
 
-Depois, abra o Swagger em `http://localhost:8080/swagger-ui.html`, faça login em `POST /api/auth/login` com a conta
-de bootstrap `admin` / `changeme123` e use o token no botão **Authorize**. Os e-mails enviados aparecem no Mailpit, em
-`http://localhost:8025`.
+Depois que a readiness responder `{"status":"UP"}`, abra o Swagger em `http://localhost:8080/swagger-ui.html`,
+faça login em `POST /api/auth/login` com a conta de bootstrap `admin` / `changeme123` e use o token no botão
+**Authorize**. Os e-mails enviados aparecem no Mailpit, em `http://localhost:8025`.
 
 > A conta `admin` é criada por migration em todos os ambientes. Troque a senha fora de um ambiente de demonstração.
+
+Detalhes: [execução local com Docker Compose](docs/setup/local-docker-compose.md).
+
+### Opção B: Kubernetes local (kind + Terraform)
+
+Siga o [guia completo de Kubernetes local](docs/setup/local-kubernetes.md), desde a preparação das dependências.
+Todas as etapas estão lá, em ordem: conferir ferramentas e recursos, criar a infraestrutura, implantar a aplicação,
+testar a API e encerrar o ambiente. O guia também inclui comandos para Ubuntu/WSL e solução de problemas.
 
 ## Documentação
 
